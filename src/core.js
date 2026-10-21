@@ -1111,7 +1111,7 @@ EXI = Object.fromEntries(EX.map(e => [e.id, e]));
 const DEFAULT_PROFILE = { sex: 'male', age: 32, height: 178, bw: 80, sport: 'squash', assessed: false };
 const DAY = 864e5;
 const S = {
-  profile: { ...DEFAULT_PROFILE }, sets: [], sample: false, sampleSets: [], loaded: false,
+  profile: { ...DEFAULT_PROFILE }, sets: [], sample: false, sampleSets: [], loaded: false, account: null,
   tab: 'body', lens: 'D', view: 'front', sel: null, open: new Set(['glutes']),
   sheet: null, mGoal: 'all', mEq: 'all', libQ: '', libGoal: 'all', libEq: 'all', libGroup: 'all',
   assess: null, zoom: 1, vb: { x: 0, y: 0, w: 200, h: 430 }, confirmDel: null
@@ -1123,9 +1123,43 @@ const r1 = v => Math.round(v * 10) / 10;
 const kg = v => `${r1(v)} kg`;
 
 // ================= Storage =================
+// Row shapes. profiles is keyed on id (the auth user id); sets and mind carry a
+// user_id. Empty numeric fields are null in Postgres but undefined in the app,
+// so they are translated in both directions rather than passed through.
+const PROFILE_COLS = ['sex', 'age', 'height', 'bw', 'sport', 'assessed'];
+const profileFromRow = r => Object.fromEntries(PROFILE_COLS.filter(k => r[k] != null).map(k => [k, r[k]]));
+const setFromRow = r => {
+  const o = { id: String(r.id), ex: r.ex, t: Number(r.t) };
+  if (r.src) o.src = r.src;
+  for (const k of ['w', 'r', 's']) if (r[k] != null) o[k] = Number(r[k]);
+  return o;
+};
+const setToRow = (s, uid) => ({
+  user_id: uid, ex: s.ex, t: s.t, src: s.src || null,
+  w: s.w == null ? null : s.w, r: s.r == null ? null : s.r, s: s.s == null ? null : s.s
+});
+const mindFromRow = r => {
+  const o = { id: String(r.id), kind: r.kind, t: Number(r.t) };
+  if (r.skill) o.skill = r.skill;
+  for (const k of ['drill', 'secs']) if (r[k] != null) o[k] = Number(r[k]);
+  return o;
+};
+const mindToRow = (m, uid) => ({
+  user_id: uid, kind: m.kind, skill: m.skill || null, t: m.t,
+  drill: m.drill == null ? null : m.drill, secs: m.secs == null ? null : m.secs
+});
+
 const Store = {
   mode: 'loading', key: 'muscle-atlas.v1',
   async init() {
+    // A signed-in Supabase account wins over everything else.
+    if (typeof SB !== 'undefined' && SB.configured()) {
+      SB.read();
+      if (SB.user && await SB.token()) {
+        try { await this.signedIn(); return; }
+        catch (e) { toast('Could not reach your account. Showing this browser’s data.'); }
+      }
+    }
     let db = null, user = null, uid = null;
     try { if (window.claude && window.claude.use) { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } } catch (e) { db = null; }
     try { uid = user ? await user.id() : null; } catch (e) { uid = null; }
@@ -1143,17 +1177,69 @@ const Store = {
     }
   },
   fail(e) { toast('Sync stopped. Reload the page to reconnect.'); },
+
+  // ---------- Supabase mode ----------
+  async signedIn() {
+    await this.pull();
+    this.mode = 'supabase';
+    S.loaded = true;
+    refresh();
+  },
+  async pull() {
+    const [prof, sets, mind] = await Promise.all([
+      SB.rest('profiles?select=*&limit=1'),
+      SB.rest('sets?select=*&order=t.asc'),
+      SB.rest('mind?select=*&order=t.asc')
+    ]);
+    const p = (prof || [])[0];
+    S.profile = { ...DEFAULT_PROFILE, ...(p ? profileFromRow(p) : {}) };
+    S.account = {
+      email: SB.user.email,
+      username: (p && p.username) || (SB.user.user_metadata || {}).username || ''
+    };
+    S.sets = (sets || []).map(setFromRow);
+    S.mind = (mind || []).map(mindFromRow);
+  },
+  // Sign-out drops back to whatever this browser had before signing in.
+  signedOut() {
+    this.mode = 'local';
+    S.account = null;
+    S.profile = { ...DEFAULT_PROFILE }; S.sets = []; S.mind = [];
+    this.loadLocal();
+    refresh();
+  },
+  localSets() {
+    try { return (JSON.parse(localStorage.getItem(this.key) || 'null') || {}).sets || []; }
+    catch (e) { return []; }
+  },
+
   loadLocal() {
     try { const d = JSON.parse(localStorage.getItem(this.key) || 'null'); if (d) { S.profile = { ...DEFAULT_PROFILE, ...d.profile }; S.sets = d.sets || []; S.mind = d.mind || []; } } catch (e) { }
   },
   saveLocal() { try { localStorage.setItem(this.key, JSON.stringify({ profile: S.profile, sets: S.sets, mind: S.mind })); } catch (e) { } },
   async addMind(doc) {
     if (this.mode === 'cloud') await this.mcol.doc().set(doc);
+    else if (this.mode === 'supabase') {
+      const rows = await SB.rest('mind', {
+        method: 'POST', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify([mindToRow(doc, SB.user.id)])
+      });
+      (rows || []).forEach(r => S.mind.push(mindFromRow(r)));
+      refresh();
+    }
     else { S.mind.push({ id: 'm' + Date.now().toString(36), ...doc }); this.saveLocal(); refresh(); }
   },
   async addSets(list) {
     if (this.mode === 'cloud') {
       for (const s of list) { await this.col.doc().set(s); }
+    } else if (this.mode === 'supabase') {
+      if (!list.length) return;
+      const rows = await SB.rest('sets', {
+        method: 'POST', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(list.map(s => setToRow(s, SB.user.id)))
+      });
+      (rows || []).forEach(r => S.sets.push(setFromRow(r)));
+      refresh();
     } else {
       for (const s of list) S.sets.push({ id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...s });
       this.saveLocal(); refresh();
@@ -1161,11 +1247,24 @@ const Store = {
   },
   async delSet(id) {
     if (this.mode === 'cloud') await this.col.doc(id).delete();
+    else if (this.mode === 'supabase') {
+      await SB.rest(`sets?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      S.sets = S.sets.filter(s => s.id !== id); refresh();
+    }
     else { S.sets = S.sets.filter(s => s.id !== id); this.saveLocal(); refresh(); }
   },
   async saveProfile(p) {
     S.profile = { ...p };
-    if (this.mode === 'cloud') await this.pref.set(S.profile); else { this.saveLocal(); refresh(); }
+    if (this.mode === 'cloud') await this.pref.set(S.profile);
+    else if (this.mode === 'supabase') {
+      // The signup trigger already made the row; upsert keeps this idempotent.
+      await SB.rest('profiles', {
+        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id: SB.user.id, ...Object.fromEntries(PROFILE_COLS.map(k => [k, S.profile[k]])) })
+      });
+      refresh();
+    }
+    else { this.saveLocal(); refresh(); }
   }
 };
 

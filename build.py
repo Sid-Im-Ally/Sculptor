@@ -31,6 +31,8 @@ html = f'''<title>Sculptor</title>
 {open('src/form3d.js').read()}
 </script>
 <script>
+{open('src/config.js').read()}
+{open('src/supabase.js').read()}
 {open('src/core.js').read()}
 {ui_js}
 {open('src/mind.js').read()}

@@ -153,6 +153,8 @@ p { margin: 0; }
 .form label { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; min-height: 48px; position: relative; font-size: 17px; }
 .form label + label::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--sep); }
 .form input, .form select { border: 0; background: transparent; text-align: right; width: 120px; color: var(--label2); padding: 4px 0; }
+.form input.txt { width: 58%; font-size: 17px; }
+.form input.txt::placeholder { color: var(--label3); }
 details.list summary { padding: 14px 16px; list-style: none; font-size: 17px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 details.list summary::-webkit-details-marker { display: none; }
 details.list[open] .chev { transform: rotate(90deg); }

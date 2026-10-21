@@ -173,6 +173,8 @@ p { margin: 0; }
 .form label { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; min-height: 48px; position: relative; font-size: 17px; }
 .form label + label::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--sep); }
 .form input, .form select { border: 0; background: transparent; text-align: right; width: 120px; color: var(--label2); padding: 4px 0; }
+.form input.txt { width: 58%; font-size: 17px; }
+.form input.txt::placeholder { color: var(--label3); }
 details.list summary { padding: 14px 16px; list-style: none; font-size: 17px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 details.list summary::-webkit-details-marker { display: none; }
 details.list[open] .chev { transform: rotate(90deg); }
@@ -765,6 +767,137 @@ function mount(host, spec, opts) {
 
 </script>
 <script>
+// ================= Supabase config =================
+// The anon key is a public client key and is meant to ship in the page. It grants
+// nothing on its own: every table is guarded by row-level security, so a request
+// only ever reaches the signed-in user's own rows. Never put the service_role key
+// here — that one bypasses RLS.
+const SUPABASE_URL = 'https://kuqrfsotqfvimsqwekos.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cXJmc290cWZ2aW1zcXdla29zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MTA0MzIsImV4cCI6MjEwODE4NjQzMn0.KACNICL9b8SmpgDAo1IP8tML9hJKWx89u1sqW7Ifb-4';
+
+// ================= Supabase client =================
+// A small GoTrue + PostgREST client over fetch: sign-up, sign-in, sign-out,
+// access-token refresh and table reads and writes. Enough for Sculptor, so the
+// page stays dependency-free.
+
+function sbMessage(b, status) {
+  const m = b && (b.error_description || b.msg || b.message || b.error_code || b.error);
+  if (!m) return status ? `Something went wrong (${status}). Try again.` : 'No connection. Check your network.';
+  const s = String(m);
+  if (/invalid login credentials/i.test(s)) return 'That email and password do not match.';
+  if (/email not confirmed/i.test(s)) return 'Confirm your email first — open the link we sent you.';
+  if (/already registered|already been registered|already exists/i.test(s)) return 'That email already has an account. Sign in instead.';
+  if (/password should be at least|weak.?password/i.test(s)) return 'Use a password of at least 6 characters.';
+  if (/unable to validate email|invalid format|email address .* is invalid|email_address_invalid/i.test(s)) return 'Enter a valid email address.';
+  if (/signup.*disabled|signups not allowed/i.test(s)) return 'New accounts are turned off for this project.';
+  if (/rate limit|too many|over_email_send/i.test(s)) return 'Too many attempts. Wait a minute, then try again.';
+  if (/duplicate key.*username/i.test(s)) return 'That username is taken. Pick another.';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const SB = {
+  // Accept a bare project URL or one that already points at /rest/v1.
+  url: String(typeof SUPABASE_URL === 'string' ? SUPABASE_URL : '').replace(/\/+$/, '').replace(/\/rest\/v1$/, ''),
+  key: typeof SUPABASE_ANON_KEY === 'string' ? SUPABASE_ANON_KEY : '',
+  skey: 'sculptor.session.v1',
+  sess: null,
+
+  configured() { return !!(this.url && this.key); },
+  get user() { return (this.sess && this.sess.user) || null; },
+
+  // ---------- session ----------
+  read() {
+    try {
+      const d = JSON.parse(localStorage.getItem(this.skey) || 'null');
+      if (d && d.access_token && d.user) this.sess = d;
+    } catch (e) { }
+    return this.sess;
+  },
+  write(s) {
+    // GoTrue reports a lifetime in seconds; keep an absolute ms deadline instead.
+    this.sess = s && s.access_token ? { ...s, exp_ms: Date.now() + (s.expires_in || 3600) * 1000 } : null;
+    try {
+      if (this.sess) localStorage.setItem(this.skey, JSON.stringify(this.sess));
+      else localStorage.removeItem(this.skey);
+    } catch (e) { }
+    return this.sess;
+  },
+
+  async call(path, opts = {}) {
+    let r, txt;
+    try {
+      r = await fetch(`${this.url}/auth/v1/${path}`, {
+        ...opts,
+        headers: { apikey: this.key, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      txt = await r.text();
+    } catch (e) { throw new Error('No connection. Check your network.'); }
+    let body = null;
+    try { body = txt ? JSON.parse(txt) : null; } catch (e) { }
+    if (!r.ok) throw new Error(sbMessage(body, r.status));
+    return body;
+  },
+
+  // ---------- auth ----------
+  // With email confirmation on, signup returns a user but no session, so the
+  // caller has to send them to their inbox rather than straight into the app.
+  async signUp(email, password, username) {
+    const b = await this.call('signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, data: { username } })
+    });
+    if (b && b.access_token) { this.write(b); return { signedIn: true }; }
+    return { signedIn: false };
+  },
+  async signIn(email, password) {
+    this.write(await this.call('token?grant_type=password', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    }));
+    return this.user;
+  },
+  async signOut() {
+    const t = this.sess && this.sess.access_token;
+    this.write(null);
+    if (t) { try { await this.call('logout', { method: 'POST', headers: { Authorization: 'Bearer ' + t } }); } catch (e) { } }
+  },
+  async refresh() {
+    if (!this.sess || !this.sess.refresh_token) return null;
+    try {
+      return this.write(await this.call('token?grant_type=refresh_token', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: this.sess.refresh_token })
+      }));
+    } catch (e) {
+      this.write(null); // refresh token is spent or revoked: treat as signed out
+      return null;
+    }
+  },
+  async token() {
+    if (!this.sess) return null;
+    if (Date.now() > (this.sess.exp_ms || 0) - 60000) await this.refresh();
+    return this.sess ? this.sess.access_token : null;
+  },
+
+  // ---------- tables ----------
+  async rest(path, opts = {}) {
+    const t = await this.token();
+    if (!t) throw new Error('Your session expired. Sign in again.');
+    let r, txt;
+    try {
+      r = await fetch(`${this.url}/rest/v1/${path}`, {
+        ...opts,
+        headers: { apikey: this.key, Authorization: 'Bearer ' + t, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      txt = await r.text();
+    } catch (e) { throw new Error('No connection. Check your network.'); }
+    let body = null;
+    try { body = txt ? JSON.parse(txt) : null; } catch (e) { }
+    if (!r.ok) throw new Error(sbMessage(body, r.status));
+    return body;
+  }
+};
+
 // Body map geometry. Coordinates describe the image-left half (the figure's right side);
 // every region is mirrored around x=100. viewBox 0 0 200 430.
 const OUTLINE = [
@@ -1878,7 +2011,7 @@ EXI = Object.fromEntries(EX.map(e => [e.id, e]));
 const DEFAULT_PROFILE = { sex: 'male', age: 32, height: 178, bw: 80, sport: 'squash', assessed: false };
 const DAY = 864e5;
 const S = {
-  profile: { ...DEFAULT_PROFILE }, sets: [], sample: false, sampleSets: [], loaded: false,
+  profile: { ...DEFAULT_PROFILE }, sets: [], sample: false, sampleSets: [], loaded: false, account: null,
   tab: 'body', lens: 'D', view: 'front', sel: null, open: new Set(['glutes']),
   sheet: null, mGoal: 'all', mEq: 'all', libQ: '', libGoal: 'all', libEq: 'all', libGroup: 'all',
   assess: null, zoom: 1, vb: { x: 0, y: 0, w: 200, h: 430 }, confirmDel: null
@@ -1890,9 +2023,43 @@ const r1 = v => Math.round(v * 10) / 10;
 const kg = v => `${r1(v)} kg`;
 
 // ================= Storage =================
+// Row shapes. profiles is keyed on id (the auth user id); sets and mind carry a
+// user_id. Empty numeric fields are null in Postgres but undefined in the app,
+// so they are translated in both directions rather than passed through.
+const PROFILE_COLS = ['sex', 'age', 'height', 'bw', 'sport', 'assessed'];
+const profileFromRow = r => Object.fromEntries(PROFILE_COLS.filter(k => r[k] != null).map(k => [k, r[k]]));
+const setFromRow = r => {
+  const o = { id: String(r.id), ex: r.ex, t: Number(r.t) };
+  if (r.src) o.src = r.src;
+  for (const k of ['w', 'r', 's']) if (r[k] != null) o[k] = Number(r[k]);
+  return o;
+};
+const setToRow = (s, uid) => ({
+  user_id: uid, ex: s.ex, t: s.t, src: s.src || null,
+  w: s.w == null ? null : s.w, r: s.r == null ? null : s.r, s: s.s == null ? null : s.s
+});
+const mindFromRow = r => {
+  const o = { id: String(r.id), kind: r.kind, t: Number(r.t) };
+  if (r.skill) o.skill = r.skill;
+  for (const k of ['drill', 'secs']) if (r[k] != null) o[k] = Number(r[k]);
+  return o;
+};
+const mindToRow = (m, uid) => ({
+  user_id: uid, kind: m.kind, skill: m.skill || null, t: m.t,
+  drill: m.drill == null ? null : m.drill, secs: m.secs == null ? null : m.secs
+});
+
 const Store = {
   mode: 'loading', key: 'muscle-atlas.v1',
   async init() {
+    // A signed-in Supabase account wins over everything else.
+    if (typeof SB !== 'undefined' && SB.configured()) {
+      SB.read();
+      if (SB.user && await SB.token()) {
+        try { await this.signedIn(); return; }
+        catch (e) { toast('Could not reach your account. Showing this browser’s data.'); }
+      }
+    }
     let db = null, user = null, uid = null;
     try { if (window.claude && window.claude.use) { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } } catch (e) { db = null; }
     try { uid = user ? await user.id() : null; } catch (e) { uid = null; }
@@ -1910,17 +2077,69 @@ const Store = {
     }
   },
   fail(e) { toast('Sync stopped. Reload the page to reconnect.'); },
+
+  // ---------- Supabase mode ----------
+  async signedIn() {
+    await this.pull();
+    this.mode = 'supabase';
+    S.loaded = true;
+    refresh();
+  },
+  async pull() {
+    const [prof, sets, mind] = await Promise.all([
+      SB.rest('profiles?select=*&limit=1'),
+      SB.rest('sets?select=*&order=t.asc'),
+      SB.rest('mind?select=*&order=t.asc')
+    ]);
+    const p = (prof || [])[0];
+    S.profile = { ...DEFAULT_PROFILE, ...(p ? profileFromRow(p) : {}) };
+    S.account = {
+      email: SB.user.email,
+      username: (p && p.username) || (SB.user.user_metadata || {}).username || ''
+    };
+    S.sets = (sets || []).map(setFromRow);
+    S.mind = (mind || []).map(mindFromRow);
+  },
+  // Sign-out drops back to whatever this browser had before signing in.
+  signedOut() {
+    this.mode = 'local';
+    S.account = null;
+    S.profile = { ...DEFAULT_PROFILE }; S.sets = []; S.mind = [];
+    this.loadLocal();
+    refresh();
+  },
+  localSets() {
+    try { return (JSON.parse(localStorage.getItem(this.key) || 'null') || {}).sets || []; }
+    catch (e) { return []; }
+  },
+
   loadLocal() {
     try { const d = JSON.parse(localStorage.getItem(this.key) || 'null'); if (d) { S.profile = { ...DEFAULT_PROFILE, ...d.profile }; S.sets = d.sets || []; S.mind = d.mind || []; } } catch (e) { }
   },
   saveLocal() { try { localStorage.setItem(this.key, JSON.stringify({ profile: S.profile, sets: S.sets, mind: S.mind })); } catch (e) { } },
   async addMind(doc) {
     if (this.mode === 'cloud') await this.mcol.doc().set(doc);
+    else if (this.mode === 'supabase') {
+      const rows = await SB.rest('mind', {
+        method: 'POST', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify([mindToRow(doc, SB.user.id)])
+      });
+      (rows || []).forEach(r => S.mind.push(mindFromRow(r)));
+      refresh();
+    }
     else { S.mind.push({ id: 'm' + Date.now().toString(36), ...doc }); this.saveLocal(); refresh(); }
   },
   async addSets(list) {
     if (this.mode === 'cloud') {
       for (const s of list) { await this.col.doc().set(s); }
+    } else if (this.mode === 'supabase') {
+      if (!list.length) return;
+      const rows = await SB.rest('sets', {
+        method: 'POST', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(list.map(s => setToRow(s, SB.user.id)))
+      });
+      (rows || []).forEach(r => S.sets.push(setFromRow(r)));
+      refresh();
     } else {
       for (const s of list) S.sets.push({ id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...s });
       this.saveLocal(); refresh();
@@ -1928,11 +2147,24 @@ const Store = {
   },
   async delSet(id) {
     if (this.mode === 'cloud') await this.col.doc(id).delete();
+    else if (this.mode === 'supabase') {
+      await SB.rest(`sets?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      S.sets = S.sets.filter(s => s.id !== id); refresh();
+    }
     else { S.sets = S.sets.filter(s => s.id !== id); this.saveLocal(); refresh(); }
   },
   async saveProfile(p) {
     S.profile = { ...p };
-    if (this.mode === 'cloud') await this.pref.set(S.profile); else { this.saveLocal(); refresh(); }
+    if (this.mode === 'cloud') await this.pref.set(S.profile);
+    else if (this.mode === 'supabase') {
+      // The signup trigger already made the row; upsert keeps this idempotent.
+      await SB.rest('profiles', {
+        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id: SB.user.id, ...Object.fromEntries(PROFILE_COLS.map(k => [k, S.profile[k]])) })
+      });
+      refresh();
+    }
+    else { this.saveLocal(); refresh(); }
   }
 };
 
@@ -2255,9 +2487,45 @@ function sheetEx(id, from) {
     <div id="exFacts">${facts(ex)}</div>
     ${has3d ? vid : ''}`;
 }
+function accountSection() {
+  if (typeof SB === 'undefined' || !SB.configured()) return '';
+  const a = S.account;
+  if (a) return `<section><h3 class="lh">Account</h3><div class="list">
+    <div class="row"><span class="grow"><span class="t">${esc(a.username || 'Signed in')}</span><span class="d">${esc(a.email)}</span></span></div>
+    <button class="row" data-act="signout"><span class="grow"><span class="t">Sign out</span><span class="d">Back to this browser’s own data</span></span>${ICON.chev}</button>
+  </div></section>`;
+  return `<section><h3 class="lh">Account</h3><div class="list">
+    <button class="row" data-act="signin"><span class="grow"><span class="t">Sign in</span><span class="d">Sync your sets across devices</span></span>${ICON.chev}</button>
+    <button class="row" data-act="signup"><span class="grow"><span class="t">Create account</span></span>${ICON.chev}</button>
+  </div></section>`;
+}
+function sheetAuth(mode) {
+  const up = mode === 'signup';
+  return sbar('Settings') + `<div><h2 class="st">${up ? 'Create account' : 'Sign in'}</h2>
+  <p class="ss">${up ? 'Your sets follow you to every device you sign in on.' : 'Welcome back.'}</p></div>
+  <form id="authForm" data-mode="${mode}" novalidate><div class="list form">
+    ${up ? `<label>Username<input id="auUser" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Required"></label>` : ''}
+    <label>Email<input id="auEmail" class="txt" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com"></label>
+    <label>Password<input id="auPass" class="txt" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" placeholder="${up ? 'At least 6 characters' : 'Required'}"></label>
+  </div><p id="auErr" class="err" hidden></p>
+  <button class="btn wide" type="submit" style="margin-top:12px">${up ? 'Create account' : 'Sign in'}</button></form>
+  <section class="list"><button class="row" data-act="${up ? 'signin' : 'signup'}"><span class="grow"><span class="t">${up ? 'I already have an account' : 'Create an account'}</span></span>${ICON.chev}</button></section>`;
+}
+function sheetConfirm(email) {
+  return sbar('') + `<div><h2 class="st">Confirm your email</h2>
+  <p class="ss">We sent a link to ${esc(email)}. Open it, then come back and sign in.</p></div>
+  <button class="btn wide" data-act="signin" style="margin-top:12px">Sign in</button>`;
+}
+function sheetUpload(n) {
+  return sbar('') + `<div><h2 class="st">Upload your sets?</h2>
+  <p class="ss">This browser has ${n} set${n === 1 ? '' : 's'} saved from before you signed in. Add ${n === 1 ? 'it' : 'them'} to your account?</p></div>
+  <div class="rowbtns" style="margin-top:14px"><button class="btn tinted" data-act="up-skip">Not now</button><button class="btn" data-act="up-go">Upload</button></div>
+  <p class="ss" style="margin-top:10px">Either way they stay saved in this browser.</p>`;
+}
 function sheetSettings() {
   const p = S.profile, ap = Theme.get();
   return sbar('') + `<h2 class="st">Settings</h2>
+  ${accountSection()}
   <section><h3 class="lh">Appearance</h3><div class="seg full" role="tablist" aria-label="Appearance">${[['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button role="tab" aria-selected="${ap === k}" data-ap="${k}">${l}</button>`).join('')}</div></section>
   <section><h3 class="lh">You</h3><form id="profileForm"><div class="list form">
     <label>Sex<select id="pSex"><option value="male"${p.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${p.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
@@ -2271,7 +2539,7 @@ function sheetSettings() {
   <details class="list"><summary>How scores work ${ICON.chev}</summary>
     <p>Each set becomes an estimated one-rep max: weight × (1 + reps ÷ 30). It is compared with men at your bodyweight: 20 Beginner, 40 Novice, 60 Intermediate, 80 Advanced, 100 Elite.</p>
     <p>Bench press, squat, deadlift, shoulder press, curl, row and power clean use <a href="https://strengthlevel.com/strength-standards/male/kg" target="_blank" rel="noopener">Strength Level</a> data. Other exercises are estimated from those lifts.</p>
-    <p>${Store.mode === 'cloud' ? 'Your sets are saved to your Claude account.' : 'Your sets are saved in this browser.'} ${allSets().length} sets logged.</p></details>`;
+    <p>${Store.mode === 'cloud' ? 'Your sets are saved to your Claude account.' : Store.mode === 'supabase' ? 'Your sets are saved to your account and sync across your devices.' : 'Your sets are saved in this browser.'} ${allSets().length} sets logged.</p></details>`;
 }
 function sheetAssess() {
   const a = S.assess, p = S.profile, n = ASSESS.length + 2;
@@ -2299,7 +2567,13 @@ function renderSheet() {
   const el = $('#sheet'), bd = $('#backdrop'), t = cur();
   if (!t) { el.hidden = true; bd.hidden = true; el.innerHTML = ''; document.body.classList.remove('locked'); if (window.Form3D) Form3D.sync(); return; }
   el.hidden = false; bd.hidden = false; document.body.classList.add('locked');
-  el.innerHTML = t.type === 'muscle' ? sheetMuscle(t.id) : t.type === 'ex' ? sheetEx(t.id, t.from) : t.type === 'settings' ? sheetSettings() : t.type === 'skill' ? sheetSkill(t.id) : t.type === 'breathe' ? sheetBreathe() : sheetAssess();
+  const SHEETS = {
+    muscle: () => sheetMuscle(t.id), ex: () => sheetEx(t.id, t.from), settings: sheetSettings,
+    skill: () => sheetSkill(t.id), breathe: sheetBreathe, assess: sheetAssess,
+    signin: () => sheetAuth('signin'), signup: () => sheetAuth('signup'),
+    confirm: () => sheetConfirm(t.email), upload: () => sheetUpload(t.n)
+  };
+  el.innerHTML = (SHEETS[t.type] || sheetAssess)();
   el.scrollTop = 0;
   if (window.Form3D) Form3D.sync();
 }
@@ -2367,6 +2641,19 @@ function makeSample() {
   return L.map(([ex, w, r, s, ago], i) => ({ id: 's' + i, ex, w: w || undefined, r: r || undefined, s: s || undefined, t: d(ago), src: 'sample' }));
 }
 
+// ---------- account ----------
+const upKey = () => 'sculptor.uploaded.' + (SB.user ? SB.user.id : '');
+function markUploaded() { try { localStorage.setItem(upKey(), '1'); } catch (e) { } }
+// Offer the browser's existing sets once per account, right after the first sign-in.
+async function afterSignIn() {
+  await Store.signedIn();
+  const n = Store.localSets().length;
+  let offered = true;
+  try { offered = !!localStorage.getItem(upKey()); } catch (e) { }
+  if (n && !offered) { S.stack = [{ type: 'upload', n }]; renderSheet(); return; }
+  closeSheet(); toast('Signed in');
+}
+
 // ---------- events ----------
 document.addEventListener('click', async e => {
   const b = e.target.closest('button,[data-m]'); if (!b || b.closest('#form3d')) return;
@@ -2396,6 +2683,21 @@ document.addEventListener('click', async e => {
   if (act === 'all') { S.showAll = !S.showAll; refreshSheetData(); }
   if (act === 'zoom-reset') setZoom(1);
   if (act === 'settings') { S.stack = [{ type: 'settings' }]; renderSheet(); }
+  if (act === 'signin' || act === 'signup') { S.stack = [{ type: act }]; renderSheet(); }
+  if (act === 'signout') {
+    b.disabled = true;
+    try { await SB.signOut(); } catch (err) { }
+    Store.signedOut(); closeSheet(); toast('Signed out');
+  }
+  if (act === 'up-skip') { markUploaded(); closeSheet(); toast('Signed in'); }
+  if (act === 'up-go') {
+    b.disabled = true; b.textContent = 'Uploading…';
+    const local = Store.localSets();
+    try {
+      await Store.addSets(local.map(s => ({ ex: s.ex, w: s.w, r: s.r, s: s.s, t: s.t, src: s.src || 'log' })));
+      markUploaded(); closeSheet(); toast(`Uploaded ${local.length} set${local.length === 1 ? '' : 's'}`);
+    } catch (err) { b.disabled = false; b.textContent = 'Upload'; toast('Could not upload. Try again.'); }
+  }
   if (act === 'sample-on') { S.sample = true; S.sampleSets = makeSample(); refresh(); toast('Showing sample data'); }
   if (act === 'sample-off') { S.sample = false; refresh(); }
   if (act === 'assess') { S.sample = false; S.assess = { step: 0, draft: {} }; S.stack = [{ type: 'assess' }]; renderMain(); renderSheet(); }
@@ -2432,6 +2734,28 @@ document.addEventListener('submit', async e => {
     if (bad) { er.textContent = bad; er.hidden = false; return; }
     try { await Store.saveProfile(p); } catch (x) { toast('Could not save. Try again.'); return; }
     if (pre === 'a') { S.assess.step = 1; renderSheet(); } else toast('Saved');
+  }
+  if (f.id === 'authForm') {
+    const up = f.dataset.mode === 'signup';
+    const email = $('#auEmail').value.trim(), pass = $('#auPass').value, name = up ? $('#auUser').value.trim() : '';
+    const er = $('#auErr');
+    const bad = up && !/^[a-z0-9_.]{3,20}$/i.test(name) ? 'Usernames are 3 to 20 letters, numbers, dots or underscores.'
+      : !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.'
+      : pass.length < 6 ? 'Use a password of at least 6 characters.' : '';
+    if (bad) { er.textContent = bad; er.hidden = false; return; }
+    er.hidden = true;
+    const btn = f.querySelector('button[type=submit]'), label = btn.textContent;
+    btn.disabled = true; btn.textContent = up ? 'Creating…' : 'Signing in…';
+    try {
+      if (up) {
+        const { signedIn } = await SB.signUp(email, pass, name);
+        if (!signedIn) { S.stack = [{ type: 'confirm', email }]; renderSheet(); return; }
+      } else await SB.signIn(email, pass);
+      await afterSignIn();
+    } catch (err) {
+      er.textContent = err.message; er.hidden = false;
+      btn.disabled = false; btn.textContent = label;
+    }
   }
   if (f.id === 'aStep') {
     const id = ASSESS[S.assess.step - 1][0], ex = EXI[id], { s, err } = readInputs(ex, 'a'), er = $('#aErr');

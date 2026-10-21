@@ -8,6 +8,18 @@ A personal muscle-map training app for iPhone, in the browser.
 
 Light and dark mode follow the phone, or set them in Settings.
 
+## Accounts
+
+Settings has sign-up, sign-in and sign-out, backed by Supabase. Without an
+account everything stays in this browser's local storage, exactly as before —
+signing in is optional. Once signed in, sets, mind sessions and your profile
+sync to every device you sign in on, and the first sign-in offers to upload the
+sets this browser already has.
+
+Each table has row-level security keyed to your user id, so an account only ever
+reads and writes its own rows. Sign-up sends a confirmation email: open the link
+before signing in. The schema and policies are in `supabase.sql`.
+
 ## Run it
 
 Open `index.html` in a browser, or serve the folder with any static host (GitHub Pages works). Data is saved in the browser's local storage on each device. The 3D model loads three.js from jsDelivr.
@@ -22,6 +34,8 @@ python3 build.py
 
 | File | What it holds |
 | --- | --- |
+| `src/config.js` | Supabase project URL and anon key |
+| `src/supabase.js` | Small Supabase auth and REST client |
 | `src/core.js` | Body map geometry, muscles, exercise library, strength standards, storage, scoring |
 | `src/ui.js` | Body and Progress tabs, sheets, logging, settings, theme |
 | `src/mind.js` | Mind tab, skills and drills, breathing session |

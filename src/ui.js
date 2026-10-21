@@ -234,9 +234,45 @@ function sheetEx(id, from) {
     <div id="exFacts">${facts(ex)}</div>
     ${has3d ? vid : ''}`;
 }
+function accountSection() {
+  if (typeof SB === 'undefined' || !SB.configured()) return '';
+  const a = S.account;
+  if (a) return `<section><h3 class="lh">Account</h3><div class="list">
+    <div class="row"><span class="grow"><span class="t">${esc(a.username || 'Signed in')}</span><span class="d">${esc(a.email)}</span></span></div>
+    <button class="row" data-act="signout"><span class="grow"><span class="t">Sign out</span><span class="d">Back to this browser’s own data</span></span>${ICON.chev}</button>
+  </div></section>`;
+  return `<section><h3 class="lh">Account</h3><div class="list">
+    <button class="row" data-act="signin"><span class="grow"><span class="t">Sign in</span><span class="d">Sync your sets across devices</span></span>${ICON.chev}</button>
+    <button class="row" data-act="signup"><span class="grow"><span class="t">Create account</span></span>${ICON.chev}</button>
+  </div></section>`;
+}
+function sheetAuth(mode) {
+  const up = mode === 'signup';
+  return sbar('Settings') + `<div><h2 class="st">${up ? 'Create account' : 'Sign in'}</h2>
+  <p class="ss">${up ? 'Your sets follow you to every device you sign in on.' : 'Welcome back.'}</p></div>
+  <form id="authForm" data-mode="${mode}" novalidate><div class="list form">
+    ${up ? `<label>Username<input id="auUser" class="txt" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Required"></label>` : ''}
+    <label>Email<input id="auEmail" class="txt" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com"></label>
+    <label>Password<input id="auPass" class="txt" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" placeholder="${up ? 'At least 6 characters' : 'Required'}"></label>
+  </div><p id="auErr" class="err" hidden></p>
+  <button class="btn wide" type="submit" style="margin-top:12px">${up ? 'Create account' : 'Sign in'}</button></form>
+  <section class="list"><button class="row" data-act="${up ? 'signin' : 'signup'}"><span class="grow"><span class="t">${up ? 'I already have an account' : 'Create an account'}</span></span>${ICON.chev}</button></section>`;
+}
+function sheetConfirm(email) {
+  return sbar('') + `<div><h2 class="st">Confirm your email</h2>
+  <p class="ss">We sent a link to ${esc(email)}. Open it, then come back and sign in.</p></div>
+  <button class="btn wide" data-act="signin" style="margin-top:12px">Sign in</button>`;
+}
+function sheetUpload(n) {
+  return sbar('') + `<div><h2 class="st">Upload your sets?</h2>
+  <p class="ss">This browser has ${n} set${n === 1 ? '' : 's'} saved from before you signed in. Add ${n === 1 ? 'it' : 'them'} to your account?</p></div>
+  <div class="rowbtns" style="margin-top:14px"><button class="btn tinted" data-act="up-skip">Not now</button><button class="btn" data-act="up-go">Upload</button></div>
+  <p class="ss" style="margin-top:10px">Either way they stay saved in this browser.</p>`;
+}
 function sheetSettings() {
   const p = S.profile, ap = Theme.get();
   return sbar('') + `<h2 class="st">Settings</h2>
+  ${accountSection()}
   <section><h3 class="lh">Appearance</h3><div class="seg full" role="tablist" aria-label="Appearance">${[['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button role="tab" aria-selected="${ap === k}" data-ap="${k}">${l}</button>`).join('')}</div></section>
   <section><h3 class="lh">You</h3><form id="profileForm"><div class="list form">
     <label>Sex<select id="pSex"><option value="male"${p.sex === 'male' ? ' selected' : ''}>Male</option><option value="female"${p.sex === 'female' ? ' selected' : ''}>Female</option></select></label>
@@ -250,7 +286,7 @@ function sheetSettings() {
   <details class="list"><summary>How scores work ${ICON.chev}</summary>
     <p>Each set becomes an estimated one-rep max: weight × (1 + reps ÷ 30). It is compared with men at your bodyweight: 20 Beginner, 40 Novice, 60 Intermediate, 80 Advanced, 100 Elite.</p>
     <p>Bench press, squat, deadlift, shoulder press, curl, row and power clean use <a href="https://strengthlevel.com/strength-standards/male/kg" target="_blank" rel="noopener">Strength Level</a> data. Other exercises are estimated from those lifts.</p>
-    <p>${Store.mode === 'cloud' ? 'Your sets are saved to your Claude account.' : 'Your sets are saved in this browser.'} ${allSets().length} sets logged.</p></details>`;
+    <p>${Store.mode === 'cloud' ? 'Your sets are saved to your Claude account.' : Store.mode === 'supabase' ? 'Your sets are saved to your account and sync across your devices.' : 'Your sets are saved in this browser.'} ${allSets().length} sets logged.</p></details>`;
 }
 function sheetAssess() {
   const a = S.assess, p = S.profile, n = ASSESS.length + 2;
@@ -278,7 +314,13 @@ function renderSheet() {
   const el = $('#sheet'), bd = $('#backdrop'), t = cur();
   if (!t) { el.hidden = true; bd.hidden = true; el.innerHTML = ''; document.body.classList.remove('locked'); if (window.Form3D) Form3D.sync(); return; }
   el.hidden = false; bd.hidden = false; document.body.classList.add('locked');
-  el.innerHTML = t.type === 'muscle' ? sheetMuscle(t.id) : t.type === 'ex' ? sheetEx(t.id, t.from) : t.type === 'settings' ? sheetSettings() : t.type === 'skill' ? sheetSkill(t.id) : t.type === 'breathe' ? sheetBreathe() : sheetAssess();
+  const SHEETS = {
+    muscle: () => sheetMuscle(t.id), ex: () => sheetEx(t.id, t.from), settings: sheetSettings,
+    skill: () => sheetSkill(t.id), breathe: sheetBreathe, assess: sheetAssess,
+    signin: () => sheetAuth('signin'), signup: () => sheetAuth('signup'),
+    confirm: () => sheetConfirm(t.email), upload: () => sheetUpload(t.n)
+  };
+  el.innerHTML = (SHEETS[t.type] || sheetAssess)();
   el.scrollTop = 0;
   if (window.Form3D) Form3D.sync();
 }
@@ -346,6 +388,19 @@ function makeSample() {
   return L.map(([ex, w, r, s, ago], i) => ({ id: 's' + i, ex, w: w || undefined, r: r || undefined, s: s || undefined, t: d(ago), src: 'sample' }));
 }
 
+// ---------- account ----------
+const upKey = () => 'sculptor.uploaded.' + (SB.user ? SB.user.id : '');
+function markUploaded() { try { localStorage.setItem(upKey(), '1'); } catch (e) { } }
+// Offer the browser's existing sets once per account, right after the first sign-in.
+async function afterSignIn() {
+  await Store.signedIn();
+  const n = Store.localSets().length;
+  let offered = true;
+  try { offered = !!localStorage.getItem(upKey()); } catch (e) { }
+  if (n && !offered) { S.stack = [{ type: 'upload', n }]; renderSheet(); return; }
+  closeSheet(); toast('Signed in');
+}
+
 // ---------- events ----------
 document.addEventListener('click', async e => {
   const b = e.target.closest('button,[data-m]'); if (!b || b.closest('#form3d')) return;
@@ -375,6 +430,21 @@ document.addEventListener('click', async e => {
   if (act === 'all') { S.showAll = !S.showAll; refreshSheetData(); }
   if (act === 'zoom-reset') setZoom(1);
   if (act === 'settings') { S.stack = [{ type: 'settings' }]; renderSheet(); }
+  if (act === 'signin' || act === 'signup') { S.stack = [{ type: act }]; renderSheet(); }
+  if (act === 'signout') {
+    b.disabled = true;
+    try { await SB.signOut(); } catch (err) { }
+    Store.signedOut(); closeSheet(); toast('Signed out');
+  }
+  if (act === 'up-skip') { markUploaded(); closeSheet(); toast('Signed in'); }
+  if (act === 'up-go') {
+    b.disabled = true; b.textContent = 'Uploading…';
+    const local = Store.localSets();
+    try {
+      await Store.addSets(local.map(s => ({ ex: s.ex, w: s.w, r: s.r, s: s.s, t: s.t, src: s.src || 'log' })));
+      markUploaded(); closeSheet(); toast(`Uploaded ${local.length} set${local.length === 1 ? '' : 's'}`);
+    } catch (err) { b.disabled = false; b.textContent = 'Upload'; toast('Could not upload. Try again.'); }
+  }
   if (act === 'sample-on') { S.sample = true; S.sampleSets = makeSample(); refresh(); toast('Showing sample data'); }
   if (act === 'sample-off') { S.sample = false; refresh(); }
   if (act === 'assess') { S.sample = false; S.assess = { step: 0, draft: {} }; S.stack = [{ type: 'assess' }]; renderMain(); renderSheet(); }
@@ -411,6 +481,28 @@ document.addEventListener('submit', async e => {
     if (bad) { er.textContent = bad; er.hidden = false; return; }
     try { await Store.saveProfile(p); } catch (x) { toast('Could not save. Try again.'); return; }
     if (pre === 'a') { S.assess.step = 1; renderSheet(); } else toast('Saved');
+  }
+  if (f.id === 'authForm') {
+    const up = f.dataset.mode === 'signup';
+    const email = $('#auEmail').value.trim(), pass = $('#auPass').value, name = up ? $('#auUser').value.trim() : '';
+    const er = $('#auErr');
+    const bad = up && !/^[a-z0-9_.]{3,20}$/i.test(name) ? 'Usernames are 3 to 20 letters, numbers, dots or underscores.'
+      : !/^\S+@\S+\.\S+$/.test(email) ? 'Enter a valid email address.'
+      : pass.length < 6 ? 'Use a password of at least 6 characters.' : '';
+    if (bad) { er.textContent = bad; er.hidden = false; return; }
+    er.hidden = true;
+    const btn = f.querySelector('button[type=submit]'), label = btn.textContent;
+    btn.disabled = true; btn.textContent = up ? 'Creating…' : 'Signing in…';
+    try {
+      if (up) {
+        const { signedIn } = await SB.signUp(email, pass, name);
+        if (!signedIn) { S.stack = [{ type: 'confirm', email }]; renderSheet(); return; }
+      } else await SB.signIn(email, pass);
+      await afterSignIn();
+    } catch (err) {
+      er.textContent = err.message; er.hidden = false;
+      btn.disabled = false; btn.textContent = label;
+    }
   }
   if (f.id === 'aStep') {
     const id = ASSESS[S.assess.step - 1][0], ex = EXI[id], { s, err } = readInputs(ex, 'a'), er = $('#aErr');
