@@ -27,6 +27,17 @@ python3 build.py
 | `src/mind.js` | Mind tab, skills and drills, breathing session |
 | `src/form3d.js` | 3D form viewer (three.js) |
 | `src/app.css`, `src/form3d.css` | Styles |
+| `src/icon.svg` | App icon, inlined into the page as the tab favicon |
+
+The tab favicon is inlined from `src/icon.svg` by `build.py`. The home-screen icon
+`icon-180.png` is a separate raster, so regenerate it after changing the icon — drop
+the `rx` corner radius first, since iOS applies its own rounded mask:
+
+```sh
+sed 's/ rx="7.5"//' src/icon.svg > /tmp/icon-ios.svg
+qlmanage -t -s 180 -o /tmp /tmp/icon-ios.svg
+sips -s format png /tmp/icon-ios.svg.png --out icon-180.png
+```
 
 ## Add to the iPhone home screen
 
