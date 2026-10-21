@@ -26,12 +26,13 @@
   --shadow: 0 10px 30px rgba(40,36,28,.08), 0 1px 3px rgba(40,36,28,.06);
   --blob1: rgba(46,133,102,.10); --blob2: rgba(190,170,130,.12);
   --scene: #ebe8e1; --floor: #dcd8cf;
+  --seg-on: #fffdf9; --seg-on-label: #161815;
   --brand: "Cinzel", "Trajan Pro", "Times New Roman", serif;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, system-ui, sans-serif;
   --nav-h: 64px;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not(.ap-light) { --bg: #0a0b0a; --card: rgba(22,25,23,.8); --card-solid: #151816; --label: #eeeae0; --label2: rgba(238,234,224,.6); --label3: rgba(238,234,224,.3); --sep: rgba(238,234,224,.12); --fill: rgba(238,234,224,.08); --fill2: rgba(238,234,224,.16); --accent: #6dbf9e; --on-accent: #05201a; --muscle: #6dbf9e; --dev: #f1ece0; --lung: #ff5a6e; --mind: #64c8f0; --danger: #ff6b5e; --m0: #2b302c; --fig: #191c1a; --fig-line: #0b0d0c; --glass: rgba(24,28,26,.6); --glass-brd: rgba(238,234,224,.10); --glass-hi: rgba(238,234,224,.07); --shadow: 0 10px 30px rgba(0,0,0,.5); --blob1: rgba(109,191,158,.10); --blob2: rgba(241,236,224,.05); --scene: #0d100e; --floor: #181c19; color-scheme: dark; } }
-:root[data-theme="dark"]:not(.ap-light), :root.ap-dark { --bg: #0a0b0a; --card: rgba(22,25,23,.8); --card-solid: #151816; --label: #eeeae0; --label2: rgba(238,234,224,.6); --label3: rgba(238,234,224,.3); --sep: rgba(238,234,224,.12); --fill: rgba(238,234,224,.08); --fill2: rgba(238,234,224,.16); --accent: #6dbf9e; --on-accent: #05201a; --muscle: #6dbf9e; --dev: #f1ece0; --lung: #ff5a6e; --mind: #64c8f0; --danger: #ff6b5e; --m0: #2b302c; --fig: #191c1a; --fig-line: #0b0d0c; --glass: rgba(24,28,26,.6); --glass-brd: rgba(238,234,224,.10); --glass-hi: rgba(238,234,224,.07); --shadow: 0 10px 30px rgba(0,0,0,.5); --blob1: rgba(109,191,158,.10); --blob2: rgba(241,236,224,.05); --scene: #0d100e; --floor: #181c19; color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not(.ap-light) { --bg: #0a0b0a; --card: rgba(22,25,23,.8); --card-solid: #151816; --label: #eeeae0; --label2: rgba(238,234,224,.6); --label3: rgba(238,234,224,.3); --sep: rgba(238,234,224,.12); --fill: rgba(238,234,224,.08); --fill2: rgba(238,234,224,.16); --accent: #6dbf9e; --on-accent: #05201a; --muscle: #6dbf9e; --dev: #f1ece0; --lung: #ff5a6e; --mind: #64c8f0; --danger: #ff6b5e; --m0: #2b302c; --fig: #191c1a; --fig-line: #0b0d0c; --glass: rgba(24,28,26,.6); --glass-brd: rgba(238,234,224,.10); --glass-hi: rgba(238,234,224,.07); --shadow: 0 10px 30px rgba(0,0,0,.5); --blob1: rgba(109,191,158,.10); --blob2: rgba(241,236,224,.05); --scene: #0d100e; --floor: #181c19; --seg-on: #6dbf9e; --seg-on-label: #05201a; color-scheme: dark; } }
+:root[data-theme="dark"]:not(.ap-light), :root.ap-dark { --bg: #0a0b0a; --card: rgba(22,25,23,.8); --card-solid: #151816; --label: #eeeae0; --label2: rgba(238,234,224,.6); --label3: rgba(238,234,224,.3); --sep: rgba(238,234,224,.12); --fill: rgba(238,234,224,.08); --fill2: rgba(238,234,224,.16); --accent: #6dbf9e; --on-accent: #05201a; --muscle: #6dbf9e; --dev: #f1ece0; --lung: #ff5a6e; --mind: #64c8f0; --danger: #ff6b5e; --m0: #2b302c; --fig: #191c1a; --fig-line: #0b0d0c; --glass: rgba(24,28,26,.6); --glass-brd: rgba(238,234,224,.10); --glass-hi: rgba(238,234,224,.07); --shadow: 0 10px 30px rgba(0,0,0,.5); --blob1: rgba(109,191,158,.10); --blob2: rgba(241,236,224,.05); --scene: #0d100e; --floor: #181c19; --seg-on: #6dbf9e; --seg-on-label: #05201a; color-scheme: dark; }
 :root.ap-light { color-scheme: light; }
 
 [hidden] { display: none !important; }
@@ -43,6 +44,8 @@ body::before { content: ""; position: fixed; inset: auto auto -10vh -20vw; width
 body.locked { overflow: hidden; }
 button, input, select { font: inherit; color: inherit; letter-spacing: inherit; }
 button { cursor: pointer; }
+/* No double-tap zoom on controls: quick repeated taps on − / + stay taps. */
+button, input, select, a, label, summary { touch-action: manipulation; }
 input, select { font-size: 17px; }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
 p { margin: 0; }
@@ -60,7 +63,7 @@ p { margin: 0; }
 /* segmented control */
 .seg { display: inline-flex; position: relative; background: var(--fill); border-radius: 10px; padding: 2px; gap: 0; }
 .seg button { border: 0; background: transparent; border-radius: 8px; padding: 6px 14px; font-size: 14px; font-weight: 500; color: var(--label); min-height: 32px; white-space: nowrap; }
-.seg button[aria-selected="true"] { background: var(--card-solid); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
+.seg button[aria-selected="true"] { background: var(--seg-on); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
 .seg.full { display: flex; } .seg.full button { flex: 1 1 0; padding: 6px 4px; font-size: 13px; }
 .seg button:disabled { color: var(--label3); }
 
@@ -126,12 +129,16 @@ p { margin: 0; }
 /* log card */
 .logcard { border-radius: 20px; padding: 16px; display: grid; gap: 14px; }
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
-.field { display: grid; gap: 6px; }
+.field { display: grid; gap: 6px; align-content: start; }
 .field label { font-size: 13px; color: var(--label2); }
 .stepper { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
-.stepper button { border: 0; background: var(--fill); border-radius: 12px; font-size: 22px; min-height: 44px; color: var(--label); }
+.stepper button { border: 0; background: var(--fill); border-radius: 12px; font-size: 22px; min-height: 44px; color: var(--label); -webkit-user-select: none; user-select: none; }
+.stepper button:active { background: var(--fill2); }
 .stepper input { text-align: center; font-size: 28px; font-weight: 600; min-height: 50px; padding: 4px; border: 0; border-radius: 12px; background: var(--fill); width: 100%; font-variant-numeric: tabular-nums; }
 .field small { font-size: 12px; color: var(--label3); text-align: center; }
+.wstep { display: flex; justify-content: center; gap: 4px; }
+.wstep button { border: 0; background: var(--fill); color: var(--label2); border-radius: 999px; min-width: 36px; min-height: 30px; padding: 4px 8px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.wstep button[aria-pressed="true"] { background: var(--seg-on); color: var(--seg-on-label); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 .err { color: var(--danger); font-size: 14px; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 15px; color: var(--label2); }
 .facts b { color: var(--label); font-weight: 600; }
@@ -203,7 +210,7 @@ details.list p { padding: 0 16px 12px; font-size: 15px; color: var(--label2); }
 .exc .rank.done { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 12px; width: auto; min-width: 28px; padding: 0 6px; border-radius: 14px; }
 .exc.mine { box-shadow: inset 3px 0 0 var(--accent), 0 1px 2px rgba(0,0,0,.04); }
 .key i { background: linear-gradient(90deg, var(--m0), var(--dev)); }
-.seg button[aria-selected="true"] { color: var(--label); }
+.seg button[aria-selected="true"] { color: var(--seg-on-label); }
 
 /* body card: front/back inside */
 .mapseg { position: absolute; left: 12px; top: 12px; z-index: 2; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
@@ -266,9 +273,9 @@ details.list p { padding: 0 16px 12px; font-size: 15px; color: var(--label2); }
 .f3-top { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; justify-content: center; pointer-events: none; }
 .f3-modes { pointer-events: auto; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 12px; }
 .f3-modes button { padding: 7px 16px; }
-.f3-modes button[data-f3mode="muscles"][aria-selected="true"] { color: var(--muscle); }
-.f3-modes button[data-f3mode="breath"][aria-selected="true"] { color: var(--lung); }
-.f3-modes button[data-f3mode="mind"][aria-selected="true"] { color: var(--mind); }
+.f3-modes button[data-f3mode="muscles"][aria-selected="true"] { color: var(--muscle); background: color-mix(in srgb, var(--muscle) 22%, var(--card-solid)); }
+.f3-modes button[data-f3mode="breath"][aria-selected="true"] { color: var(--lung); background: color-mix(in srgb, var(--lung) 22%, var(--card-solid)); }
+.f3-modes button[data-f3mode="mind"][aria-selected="true"] { color: var(--mind); background: color-mix(in srgb, var(--mind) 22%, var(--card-solid)); }
 .f3-bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .f3-views { display: flex; gap: 2px; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 999px; padding: 3px; }
 .f3-views button { border: 0; background: transparent; color: var(--label); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; min-height: 32px; }
@@ -2254,7 +2261,7 @@ function lensText(v, lens = S.lens) {
 // ================= Interface =================
 GOALS.P = 'Agility';
 const GOAL_TABS = [['S', 'Strength'], ['E', 'Endurance'], ['P', 'Agility'], ['M', 'Mobility'], ['F', 'Stretch']];
-Object.assign(S, { mind: [], tab: 'body', stack: [], goal: 'S', showAll: false, prog: 'ex', pex: null, openG: null, openPG: null });
+Object.assign(S, { mind: [], tab: 'body', stack: [], goal: 'S', showAll: false, prog: 'ex', pex: null, openG: null, openPG: null, timed: {} });
 const ICON = {
   chev: '<svg class="chev" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6"/></svg>',
   back: '<svg viewBox="0 0 10 17"><path d="M9 1L1.5 8.5 9 16"/></svg>',
@@ -2305,7 +2312,8 @@ function setZoom(z, cx = 100, cy = 215) {
   const step = now => { const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 3); S.vb = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e }; applyVB(); if (t < 1) vbAnim = requestAnimationFrame(step); };
   vbAnim = requestAnimationFrame(step);
 }
-function updateZoomUI() { const r = $('#zoomReset'), h = $('#mapHint'); if (r) r.hidden = S.zoom === 1; if (h) h.textContent = S.zoom === 1 ? 'Tap an area to zoom in.' : 'Tap a muscle. Drag to move around.'; }
+const mapHint = () => S.zoom === 1 ? 'Tap the body to zoom in.' : 'Tap a muscle. Tap empty space to zoom out.';
+function updateZoomUI() { const r = $('#zoomReset'), h = $('#mapHint'); if (r) r.hidden = S.zoom === 1; if (h) h.textContent = mapHint(); }
 function bindMap() {
   const m = $('#map'); if (!m) return;
   m.style.touchAction = S.zoom > 1 ? 'none' : 'pan-y';
@@ -2316,10 +2324,13 @@ function bindMap() {
   m.addEventListener('pointerup', e => {
     const d = down; down = null; if (!d || d.moved) return;
     const r = m.getBoundingClientRect(), k = S.vb.w / r.width, sx = S.vb.x + (e.clientX - r.left) * k, sy = S.vb.y + (e.clientY - r.top) * k;
-    if (S.zoom === 1) { setZoom(ZOOM_IN, sx, sy); return; }
-    const t = document.elementFromPoint(e.clientX, e.clientY), id = t && t.dataset ? t.dataset.m : null;
-    if (id) openMuscle(id);
+    // Taps on the figure zoom in, then pick a muscle; taps on empty space zoom back out.
+    const t = document.elementFromPoint(e.clientX, e.clientY), id = t && t.dataset ? t.dataset.m : null, onBody = !!(t && t.closest && t.closest('.mz, .sil'));
+    if (S.zoom === 1) { if (onBody) setZoom(ZOOM_IN, sx, sy); return; }
+    if (id) openMuscle(id); else if (!onBody) setZoom(1);
   });
+  // The card around the figure counts as empty space too.
+  m.closest('.mapcard').addEventListener('click', e => { if (S.zoom > 1 && !e.target.closest('#map, button')) setZoom(1); });
 }
 function paintMap() { document.querySelectorAll('#map .mz').forEach(p => { const k = p.dataset.m; p.style.fill = fillFor(k); p.classList.toggle('sel', S.sel === k); }); }
 
@@ -2363,7 +2374,7 @@ function viewBody() {
   }).join('');
   return `<header class="lt"><div class="brand">SCULPTOR</div></header><div class="meander" aria-hidden="true"></div>
   <section><div class="mapcard glass"><div class="seg mapseg" role="tablist" aria-label="Side">${['front', 'back'].map(v => `<button role="tab" aria-selected="${S.view === v}" data-side="${v}">${v === 'front' ? 'Front' : 'Back'}</button>`).join('')}</div>${mapSVG()}<div class="plinth" aria-hidden="true"><span>ΓΝΩΘΙ ΣΑΥΤΟΝ</span></div><button id="zoomReset" class="zoomreset glass" data-act="zoom-reset"${S.zoom === 1 ? ' hidden' : ''}>Full body</button></div>
-    <p class="hint" id="mapHint">${S.zoom === 1 ? 'Tap an area to zoom in.' : 'Tap a muscle. Drag to move around.'}</p>
+    <p class="hint" id="mapHint">${mapHint()}</p>
     <div class="key" aria-hidden="true"><span>Untrained</span><i></i><span>Strong</span></div></section>
   <section><h2 class="lh">All muscles</h2><div class="list">${groups}</div></section>`;
 }
@@ -2371,8 +2382,9 @@ function viewBody() {
 // ---------- Progress ----------
 function valueOf(ex, s) {
   if (ex.std) { const v = e1rm(ex, s); if (v) return [v, 'kg', 'Estimated max']; }
-  if (ex.mode === 'time' || ex.mode === 'loadtime') return [s.s || 0, 's', 'Time'];
-  if (ex.mode === 'reps' || ex.mode === 'bw') return [s.r || 0, 'reps', 'Reps'];
+  const m = setMode(ex, s);
+  if (m === 'time' || m === 'loadtime' || m === 'bwtime') return [s.s || 0, 's', 'Time'];
+  if (m === 'reps' || m === 'bw') return [s.r || 0, 'reps', 'Reps'];
   return [s.w || 0, 'kg', 'Weight'];
 }
 function seriesFor(id) {
@@ -2477,12 +2489,12 @@ function facts(ex) {
   return f.length ? `<div class="facts">${f.join('')}</div>` : '';
 }
 function sheetEx(id, from) {
-  const ex = EXI[id], v = VIDEO[id], last = lastSetOf(id), has3d = window.Form3D && Form3D.has(id);
+  const ex = EXI[id], v = VIDEO[id], last = lastSetOf(id), has3d = window.Form3D && Form3D.has(id), timed = canTime(ex) && isTimed(ex);
   const vid = v ? `<a class="watch" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="play">${ICON.play}</span><span class="grow"><span>Watch a demo</span><small>${isShort(v.url) ? 'Short video' : 'Video'} · YouTube</small></span>${ICON.chev}</a>`
     : `<a class="watch" href="https://www.youtube.com/results?search_query=${encodeURIComponent(cleanName(ex.name) + ' form')}" target="_blank" rel="noopener"><span class="play">${ICON.play}</span><span class="grow"><span>Find a demo</span><small>Search YouTube</small></span>${ICON.chev}</a>`;
   return sbar(from ? plain(from) : '') + `<div><h2 class="st">${esc(cleanName(ex.name))}</h2><p class="ss">${esc(ex.cue)}</p></div>
     ${has3d ? form3dBlock(ex) : vid}
-    <form id="logForm" class="logcard glass"><div class="fields">${inputsFor(ex, last)}</div><p id="logErr" class="err" hidden></p>
+    <form id="logForm" class="logcard glass">${canTime(ex) ? `<div class="seg full" role="tablist" aria-label="Track by">${[['reps', 'Reps'], ['time', 'Duration']].map(([k, l]) => `<button type="button" role="tab" aria-selected="${(k === 'time') === timed}" data-track="${k}">${l}</button>`).join('')}</div>` : ''}<div class="fields">${inputsFor(ex, last, 'f', timed)}</div><p id="logErr" class="err" hidden></p>
       <button class="btn wide" type="submit"${S.sample ? ' disabled' : ''}>${S.sample ? 'Exit sample data to log' : 'Log set'}</button></form>
     <div id="exFacts">${facts(ex)}</div>
     ${has3d ? vid : ''}`;
@@ -2596,34 +2608,48 @@ function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = fal
 
 // existing helpers the views rely on
 function lastSetOf(id) { return [...allSets()].filter(s => s.ex === id).sort((a, b) => b.t - a.t)[0]; }
-function field(id, label, val, step, unit) {
-  return `<div class="field"><label for="${id}">${label}</label><div class="stepper"><button type="button" data-step="${id}" data-d="-${step}" aria-label="Less ${label.toLowerCase()}">−</button><input id="${id}" type="number" inputmode="decimal" step="any" value="${val}"><button type="button" data-step="${id}" data-d="${step}" aria-label="More ${label.toLowerCase()}">+</button></div><small>${unit}</small></div>`;
+function field(id, label, val, step, unit, extra = '') {
+  return `<div class="field"><label for="${id}">${label}</label><div class="stepper"><button type="button" data-step="${id}" data-d="-${step}" aria-label="Less ${label.toLowerCase()}">−</button><input id="${id}" type="number" inputmode="decimal" step="any" value="${val}"><button type="button" data-step="${id}" data-d="${step}" aria-label="More ${label.toLowerCase()}">+</button></div><small>${unit}</small>${extra}</div>`;
 }
-function inputsFor(ex, last, prefix = 'f') {
-  const L = last || {};
-  switch (ex.mode) {
-    case 'load': return field(prefix + 'W', 'Weight', L.w ?? 20, 2.5, ex.name.includes('per hand') ? 'kg per hand' : ex.name.includes('per side') ? 'kg per side' : 'kg') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
-    case 'bw': return field(prefix + 'W', 'Added weight', L.w ?? 0, 2.5, 'kg, negative if assisted') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
+// Weight step size for the − / + buttons, remembered per browser.
+const WSTEPS = [0.5, 1, 2.5, 5];
+const wStep = () => { try { const v = +localStorage.getItem('sculptor.wstep'); return WSTEPS.includes(v) ? v : 2.5; } catch (e) { return 2.5; } };
+function wField(id, label, val, unit) {
+  const st = wStep();
+  return field(id, label, val, st, unit, `<div class="wstep" role="group" aria-label="Weight step">${WSTEPS.map(v => `<button type="button" data-wstep="${v}" aria-pressed="${v === st}" aria-label="Step ${v} kg">${v}</button>`).join('')}</div>`);
+}
+// Rep-based exercises can also be logged by duration; such a set has s and no r.
+const timedMode = m => ({ load: 'loadtime', bw: 'bwtime', reps: 'time' }[m] || m);
+const canTime = ex => ['load', 'bw', 'reps'].includes(ex.mode);
+const setMode = (ex, s) => s && s.s != null && s.r == null ? timedMode(ex.mode) : ex.mode;
+function isTimed(ex) { if (ex.id in S.timed) return S.timed[ex.id]; const l = lastSetOf(ex.id); return !!l && setMode(ex, l) !== ex.mode; }
+function inputsFor(ex, last, prefix = 'f', timed = false) {
+  const L = last || {}, unit = ex.name.includes('per hand') ? 'kg per hand' : ex.name.includes('per side') ? 'kg per side' : 'kg';
+  switch (timed ? timedMode(ex.mode) : ex.mode) {
+    case 'load': return wField(prefix + 'W', 'Weight', L.w ?? 20, unit) + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
+    case 'bw': return wField(prefix + 'W', 'Added weight', L.w ?? 0, 'kg, negative if assisted') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
     case 'reps': return field(prefix + 'R', 'Reps', L.r ?? 10, 1, 'reps');
     case 'time': return field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
-    case 'loadtime': return field(prefix + 'W', 'Weight', L.w ?? 20, 2.5, 'kg') + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
+    case 'loadtime': return wField(prefix + 'W', 'Weight', L.w ?? 20, unit) + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
+    case 'bwtime': return wField(prefix + 'W', 'Added weight', L.w ?? 0, 'kg, negative if assisted') + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
   }
 }
-function readInputs(ex, prefix = 'f') {
+function readInputs(ex, prefix = 'f', timed = false) {
   const g = k => { const el = document.getElementById(prefix + k); return el ? parseFloat(el.value) : NaN; };
-  const s = {};
-  if (['load', 'bw', 'loadtime'].includes(ex.mode)) { s.w = g('W'); if (isNaN(s.w)) return { err: 'Enter a weight.' }; if (ex.mode !== 'bw' && s.w <= 0) return { err: 'Weight must be more than 0.' }; }
-  if (['load', 'bw', 'reps'].includes(ex.mode)) { s.r = Math.round(g('R')); if (!(s.r >= 1)) return { err: 'Enter at least 1 rep.' }; if (s.r > 500) return { err: 'That rep count looks too high.' }; }
-  if (['time', 'loadtime'].includes(ex.mode)) { s.s = Math.round(g('S')); if (!(s.s >= 1)) return { err: 'Enter at least 1 second.' }; }
+  const s = {}, m = timed ? timedMode(ex.mode) : ex.mode;
+  if (['load', 'bw', 'loadtime', 'bwtime'].includes(m)) { s.w = g('W'); if (isNaN(s.w)) return { err: 'Enter a weight.' }; if (m !== 'bw' && m !== 'bwtime' && s.w <= 0) return { err: 'Weight must be more than 0.' }; }
+  if (['load', 'bw', 'reps'].includes(m)) { s.r = Math.round(g('R')); if (!(s.r >= 1)) return { err: 'Enter at least 1 rep.' }; if (s.r > 500) return { err: 'That rep count looks too high.' }; }
+  if (['time', 'loadtime', 'bwtime'].includes(m)) { s.s = Math.round(g('S')); if (!(s.s >= 1)) return { err: 'Enter at least 1 second.' }; }
   return { s };
 }
 function setText(ex, s) {
-  switch (ex.mode) {
+  switch (setMode(ex, s)) {
     case 'load': return `${r1(s.w)} kg × ${s.r}`;
     case 'bw': return `${s.w ? (s.w > 0 ? '+' : '') + r1(s.w) + ' kg × ' : ''}${s.r} reps`;
     case 'reps': return `${s.r} reps`;
     case 'time': return `${s.s} s`;
     case 'loadtime': return `${r1(s.w)} kg · ${s.s} s`;
+    case 'bwtime': return `${s.w ? (s.w > 0 ? '+' : '') + r1(s.w) + ' kg · ' : ''}${s.s} s`;
   }
 }
 const isShort = u => /\/shorts\//.test(u);
@@ -2672,6 +2698,20 @@ document.addEventListener('click', async e => {
   if (ds.ex) { openEx(ds.ex); return; }
   if (ds.m && b.tagName === 'BUTTON') { openMuscle(ds.m); return; }
   if (ds.step) { const inp = document.getElementById(ds.step); const v = (parseFloat(inp.value) || 0) + parseFloat(ds.d); inp.value = r1(inp.id.endsWith('W') ? v : Math.max(0, v)); return; }
+  if (ds.wstep) {
+    const v = +ds.wstep; try { localStorage.setItem('sculptor.wstep', v); } catch (err) { }
+    document.querySelectorAll('[data-wstep]').forEach(x => x.setAttribute('aria-pressed', +x.dataset.wstep === v));
+    document.querySelectorAll('[data-step$="W"]').forEach(x => { x.dataset.d = x.dataset.d.startsWith('-') ? -v : v; });
+    return;
+  }
+  if (ds.track) {
+    const ex = EXI[cur().id], timed = ds.track === 'time', w = $('#fW'), l = lastSetOf(ex.id) || {};
+    S.timed[ex.id] = timed;
+    $('#logForm .fields').innerHTML = inputsFor(ex, { ...l, w: w && w.value !== '' ? parseFloat(w.value) : l.w }, 'f', timed);
+    document.querySelectorAll('[data-track]').forEach(x => x.setAttribute('aria-selected', (x.dataset.track === 'time') === timed));
+    $('#logErr').hidden = true;
+    return;
+  }
   if (ds.askdel) { S.confirmDel = ds.askdel; refresh(); return; }
   if (ds.del) { S.confirmDel = null; try { await Store.delSet(ds.del); toast('Set removed'); } catch (err) { toast('Could not remove that set. Try again.'); } return; }
   const act = ds.act;
@@ -2717,7 +2757,7 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
   if (f.id === 'logForm') {
-    const t = cur(), ex = EXI[t.id], { s, err } = readInputs(ex), er = $('#logErr');
+    const t = cur(), ex = EXI[t.id], { s, err } = readInputs(ex, 'f', canTime(ex) && isTimed(ex)), er = $('#logErr');
     if (err) { er.textContent = err; er.hidden = false; return; }
     er.hidden = true;
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true;

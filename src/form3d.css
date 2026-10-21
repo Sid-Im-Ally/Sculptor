@@ -10,9 +10,9 @@
 .f3-top { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; justify-content: center; pointer-events: none; }
 .f3-modes { pointer-events: auto; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 12px; }
 .f3-modes button { padding: 7px 16px; }
-.f3-modes button[data-f3mode="muscles"][aria-selected="true"] { color: var(--muscle); }
-.f3-modes button[data-f3mode="breath"][aria-selected="true"] { color: var(--lung); }
-.f3-modes button[data-f3mode="mind"][aria-selected="true"] { color: var(--mind); }
+.f3-modes button[data-f3mode="muscles"][aria-selected="true"] { color: var(--muscle); background: color-mix(in srgb, var(--muscle) 22%, var(--card-solid)); }
+.f3-modes button[data-f3mode="breath"][aria-selected="true"] { color: var(--lung); background: color-mix(in srgb, var(--lung) 22%, var(--card-solid)); }
+.f3-modes button[data-f3mode="mind"][aria-selected="true"] { color: var(--mind); background: color-mix(in srgb, var(--mind) 22%, var(--card-solid)); }
 .f3-bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .f3-views { display: flex; gap: 2px; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 999px; padding: 3px; }
 .f3-views button { border: 0; background: transparent; color: var(--label); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; min-height: 32px; }

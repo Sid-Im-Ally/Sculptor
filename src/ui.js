@@ -1,7 +1,7 @@
 // ================= Interface =================
 GOALS.P = 'Agility';
 const GOAL_TABS = [['S', 'Strength'], ['E', 'Endurance'], ['P', 'Agility'], ['M', 'Mobility'], ['F', 'Stretch']];
-Object.assign(S, { mind: [], tab: 'body', stack: [], goal: 'S', showAll: false, prog: 'ex', pex: null, openG: null, openPG: null });
+Object.assign(S, { mind: [], tab: 'body', stack: [], goal: 'S', showAll: false, prog: 'ex', pex: null, openG: null, openPG: null, timed: {} });
 const ICON = {
   chev: '<svg class="chev" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6"/></svg>',
   back: '<svg viewBox="0 0 10 17"><path d="M9 1L1.5 8.5 9 16"/></svg>',
@@ -52,7 +52,8 @@ function setZoom(z, cx = 100, cy = 215) {
   const step = now => { const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 3); S.vb = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e }; applyVB(); if (t < 1) vbAnim = requestAnimationFrame(step); };
   vbAnim = requestAnimationFrame(step);
 }
-function updateZoomUI() { const r = $('#zoomReset'), h = $('#mapHint'); if (r) r.hidden = S.zoom === 1; if (h) h.textContent = S.zoom === 1 ? 'Tap an area to zoom in.' : 'Tap a muscle. Drag to move around.'; }
+const mapHint = () => S.zoom === 1 ? 'Tap the body to zoom in.' : 'Tap a muscle. Tap empty space to zoom out.';
+function updateZoomUI() { const r = $('#zoomReset'), h = $('#mapHint'); if (r) r.hidden = S.zoom === 1; if (h) h.textContent = mapHint(); }
 function bindMap() {
   const m = $('#map'); if (!m) return;
   m.style.touchAction = S.zoom > 1 ? 'none' : 'pan-y';
@@ -63,10 +64,13 @@ function bindMap() {
   m.addEventListener('pointerup', e => {
     const d = down; down = null; if (!d || d.moved) return;
     const r = m.getBoundingClientRect(), k = S.vb.w / r.width, sx = S.vb.x + (e.clientX - r.left) * k, sy = S.vb.y + (e.clientY - r.top) * k;
-    if (S.zoom === 1) { setZoom(ZOOM_IN, sx, sy); return; }
-    const t = document.elementFromPoint(e.clientX, e.clientY), id = t && t.dataset ? t.dataset.m : null;
-    if (id) openMuscle(id);
+    // Taps on the figure zoom in, then pick a muscle; taps on empty space zoom back out.
+    const t = document.elementFromPoint(e.clientX, e.clientY), id = t && t.dataset ? t.dataset.m : null, onBody = !!(t && t.closest && t.closest('.mz, .sil'));
+    if (S.zoom === 1) { if (onBody) setZoom(ZOOM_IN, sx, sy); return; }
+    if (id) openMuscle(id); else if (!onBody) setZoom(1);
   });
+  // The card around the figure counts as empty space too.
+  m.closest('.mapcard').addEventListener('click', e => { if (S.zoom > 1 && !e.target.closest('#map, button')) setZoom(1); });
 }
 function paintMap() { document.querySelectorAll('#map .mz').forEach(p => { const k = p.dataset.m; p.style.fill = fillFor(k); p.classList.toggle('sel', S.sel === k); }); }
 
@@ -110,7 +114,7 @@ function viewBody() {
   }).join('');
   return `<header class="lt"><div class="brand">SCULPTOR</div></header><div class="meander" aria-hidden="true"></div>
   <section><div class="mapcard glass"><div class="seg mapseg" role="tablist" aria-label="Side">${['front', 'back'].map(v => `<button role="tab" aria-selected="${S.view === v}" data-side="${v}">${v === 'front' ? 'Front' : 'Back'}</button>`).join('')}</div>${mapSVG()}<div class="plinth" aria-hidden="true"><span>ΓΝΩΘΙ ΣΑΥΤΟΝ</span></div><button id="zoomReset" class="zoomreset glass" data-act="zoom-reset"${S.zoom === 1 ? ' hidden' : ''}>Full body</button></div>
-    <p class="hint" id="mapHint">${S.zoom === 1 ? 'Tap an area to zoom in.' : 'Tap a muscle. Drag to move around.'}</p>
+    <p class="hint" id="mapHint">${mapHint()}</p>
     <div class="key" aria-hidden="true"><span>Untrained</span><i></i><span>Strong</span></div></section>
   <section><h2 class="lh">All muscles</h2><div class="list">${groups}</div></section>`;
 }
@@ -118,8 +122,9 @@ function viewBody() {
 // ---------- Progress ----------
 function valueOf(ex, s) {
   if (ex.std) { const v = e1rm(ex, s); if (v) return [v, 'kg', 'Estimated max']; }
-  if (ex.mode === 'time' || ex.mode === 'loadtime') return [s.s || 0, 's', 'Time'];
-  if (ex.mode === 'reps' || ex.mode === 'bw') return [s.r || 0, 'reps', 'Reps'];
+  const m = setMode(ex, s);
+  if (m === 'time' || m === 'loadtime' || m === 'bwtime') return [s.s || 0, 's', 'Time'];
+  if (m === 'reps' || m === 'bw') return [s.r || 0, 'reps', 'Reps'];
   return [s.w || 0, 'kg', 'Weight'];
 }
 function seriesFor(id) {
@@ -224,12 +229,12 @@ function facts(ex) {
   return f.length ? `<div class="facts">${f.join('')}</div>` : '';
 }
 function sheetEx(id, from) {
-  const ex = EXI[id], v = VIDEO[id], last = lastSetOf(id), has3d = window.Form3D && Form3D.has(id);
+  const ex = EXI[id], v = VIDEO[id], last = lastSetOf(id), has3d = window.Form3D && Form3D.has(id), timed = canTime(ex) && isTimed(ex);
   const vid = v ? `<a class="watch" href="${esc(v.url)}" target="_blank" rel="noopener"><span class="play">${ICON.play}</span><span class="grow"><span>Watch a demo</span><small>${isShort(v.url) ? 'Short video' : 'Video'} · YouTube</small></span>${ICON.chev}</a>`
     : `<a class="watch" href="https://www.youtube.com/results?search_query=${encodeURIComponent(cleanName(ex.name) + ' form')}" target="_blank" rel="noopener"><span class="play">${ICON.play}</span><span class="grow"><span>Find a demo</span><small>Search YouTube</small></span>${ICON.chev}</a>`;
   return sbar(from ? plain(from) : '') + `<div><h2 class="st">${esc(cleanName(ex.name))}</h2><p class="ss">${esc(ex.cue)}</p></div>
     ${has3d ? form3dBlock(ex) : vid}
-    <form id="logForm" class="logcard glass"><div class="fields">${inputsFor(ex, last)}</div><p id="logErr" class="err" hidden></p>
+    <form id="logForm" class="logcard glass">${canTime(ex) ? `<div class="seg full" role="tablist" aria-label="Track by">${[['reps', 'Reps'], ['time', 'Duration']].map(([k, l]) => `<button type="button" role="tab" aria-selected="${(k === 'time') === timed}" data-track="${k}">${l}</button>`).join('')}</div>` : ''}<div class="fields">${inputsFor(ex, last, 'f', timed)}</div><p id="logErr" class="err" hidden></p>
       <button class="btn wide" type="submit"${S.sample ? ' disabled' : ''}>${S.sample ? 'Exit sample data to log' : 'Log set'}</button></form>
     <div id="exFacts">${facts(ex)}</div>
     ${has3d ? vid : ''}`;
@@ -343,34 +348,48 @@ function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = fal
 
 // existing helpers the views rely on
 function lastSetOf(id) { return [...allSets()].filter(s => s.ex === id).sort((a, b) => b.t - a.t)[0]; }
-function field(id, label, val, step, unit) {
-  return `<div class="field"><label for="${id}">${label}</label><div class="stepper"><button type="button" data-step="${id}" data-d="-${step}" aria-label="Less ${label.toLowerCase()}">−</button><input id="${id}" type="number" inputmode="decimal" step="any" value="${val}"><button type="button" data-step="${id}" data-d="${step}" aria-label="More ${label.toLowerCase()}">+</button></div><small>${unit}</small></div>`;
+function field(id, label, val, step, unit, extra = '') {
+  return `<div class="field"><label for="${id}">${label}</label><div class="stepper"><button type="button" data-step="${id}" data-d="-${step}" aria-label="Less ${label.toLowerCase()}">−</button><input id="${id}" type="number" inputmode="decimal" step="any" value="${val}"><button type="button" data-step="${id}" data-d="${step}" aria-label="More ${label.toLowerCase()}">+</button></div><small>${unit}</small>${extra}</div>`;
 }
-function inputsFor(ex, last, prefix = 'f') {
-  const L = last || {};
-  switch (ex.mode) {
-    case 'load': return field(prefix + 'W', 'Weight', L.w ?? 20, 2.5, ex.name.includes('per hand') ? 'kg per hand' : ex.name.includes('per side') ? 'kg per side' : 'kg') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
-    case 'bw': return field(prefix + 'W', 'Added weight', L.w ?? 0, 2.5, 'kg, negative if assisted') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
+// Weight step size for the − / + buttons, remembered per browser.
+const WSTEPS = [0.5, 1, 2.5, 5];
+const wStep = () => { try { const v = +localStorage.getItem('sculptor.wstep'); return WSTEPS.includes(v) ? v : 2.5; } catch (e) { return 2.5; } };
+function wField(id, label, val, unit) {
+  const st = wStep();
+  return field(id, label, val, st, unit, `<div class="wstep" role="group" aria-label="Weight step">${WSTEPS.map(v => `<button type="button" data-wstep="${v}" aria-pressed="${v === st}" aria-label="Step ${v} kg">${v}</button>`).join('')}</div>`);
+}
+// Rep-based exercises can also be logged by duration; such a set has s and no r.
+const timedMode = m => ({ load: 'loadtime', bw: 'bwtime', reps: 'time' }[m] || m);
+const canTime = ex => ['load', 'bw', 'reps'].includes(ex.mode);
+const setMode = (ex, s) => s && s.s != null && s.r == null ? timedMode(ex.mode) : ex.mode;
+function isTimed(ex) { if (ex.id in S.timed) return S.timed[ex.id]; const l = lastSetOf(ex.id); return !!l && setMode(ex, l) !== ex.mode; }
+function inputsFor(ex, last, prefix = 'f', timed = false) {
+  const L = last || {}, unit = ex.name.includes('per hand') ? 'kg per hand' : ex.name.includes('per side') ? 'kg per side' : 'kg';
+  switch (timed ? timedMode(ex.mode) : ex.mode) {
+    case 'load': return wField(prefix + 'W', 'Weight', L.w ?? 20, unit) + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
+    case 'bw': return wField(prefix + 'W', 'Added weight', L.w ?? 0, 'kg, negative if assisted') + field(prefix + 'R', 'Reps', L.r ?? 8, 1, 'reps');
     case 'reps': return field(prefix + 'R', 'Reps', L.r ?? 10, 1, 'reps');
     case 'time': return field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
-    case 'loadtime': return field(prefix + 'W', 'Weight', L.w ?? 20, 2.5, 'kg') + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
+    case 'loadtime': return wField(prefix + 'W', 'Weight', L.w ?? 20, unit) + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
+    case 'bwtime': return wField(prefix + 'W', 'Added weight', L.w ?? 0, 'kg, negative if assisted') + field(prefix + 'S', 'Time', L.s ?? 30, 5, 'seconds');
   }
 }
-function readInputs(ex, prefix = 'f') {
+function readInputs(ex, prefix = 'f', timed = false) {
   const g = k => { const el = document.getElementById(prefix + k); return el ? parseFloat(el.value) : NaN; };
-  const s = {};
-  if (['load', 'bw', 'loadtime'].includes(ex.mode)) { s.w = g('W'); if (isNaN(s.w)) return { err: 'Enter a weight.' }; if (ex.mode !== 'bw' && s.w <= 0) return { err: 'Weight must be more than 0.' }; }
-  if (['load', 'bw', 'reps'].includes(ex.mode)) { s.r = Math.round(g('R')); if (!(s.r >= 1)) return { err: 'Enter at least 1 rep.' }; if (s.r > 500) return { err: 'That rep count looks too high.' }; }
-  if (['time', 'loadtime'].includes(ex.mode)) { s.s = Math.round(g('S')); if (!(s.s >= 1)) return { err: 'Enter at least 1 second.' }; }
+  const s = {}, m = timed ? timedMode(ex.mode) : ex.mode;
+  if (['load', 'bw', 'loadtime', 'bwtime'].includes(m)) { s.w = g('W'); if (isNaN(s.w)) return { err: 'Enter a weight.' }; if (m !== 'bw' && m !== 'bwtime' && s.w <= 0) return { err: 'Weight must be more than 0.' }; }
+  if (['load', 'bw', 'reps'].includes(m)) { s.r = Math.round(g('R')); if (!(s.r >= 1)) return { err: 'Enter at least 1 rep.' }; if (s.r > 500) return { err: 'That rep count looks too high.' }; }
+  if (['time', 'loadtime', 'bwtime'].includes(m)) { s.s = Math.round(g('S')); if (!(s.s >= 1)) return { err: 'Enter at least 1 second.' }; }
   return { s };
 }
 function setText(ex, s) {
-  switch (ex.mode) {
+  switch (setMode(ex, s)) {
     case 'load': return `${r1(s.w)} kg × ${s.r}`;
     case 'bw': return `${s.w ? (s.w > 0 ? '+' : '') + r1(s.w) + ' kg × ' : ''}${s.r} reps`;
     case 'reps': return `${s.r} reps`;
     case 'time': return `${s.s} s`;
     case 'loadtime': return `${r1(s.w)} kg · ${s.s} s`;
+    case 'bwtime': return `${s.w ? (s.w > 0 ? '+' : '') + r1(s.w) + ' kg · ' : ''}${s.s} s`;
   }
 }
 const isShort = u => /\/shorts\//.test(u);
@@ -419,6 +438,20 @@ document.addEventListener('click', async e => {
   if (ds.ex) { openEx(ds.ex); return; }
   if (ds.m && b.tagName === 'BUTTON') { openMuscle(ds.m); return; }
   if (ds.step) { const inp = document.getElementById(ds.step); const v = (parseFloat(inp.value) || 0) + parseFloat(ds.d); inp.value = r1(inp.id.endsWith('W') ? v : Math.max(0, v)); return; }
+  if (ds.wstep) {
+    const v = +ds.wstep; try { localStorage.setItem('sculptor.wstep', v); } catch (err) { }
+    document.querySelectorAll('[data-wstep]').forEach(x => x.setAttribute('aria-pressed', +x.dataset.wstep === v));
+    document.querySelectorAll('[data-step$="W"]').forEach(x => { x.dataset.d = x.dataset.d.startsWith('-') ? -v : v; });
+    return;
+  }
+  if (ds.track) {
+    const ex = EXI[cur().id], timed = ds.track === 'time', w = $('#fW'), l = lastSetOf(ex.id) || {};
+    S.timed[ex.id] = timed;
+    $('#logForm .fields').innerHTML = inputsFor(ex, { ...l, w: w && w.value !== '' ? parseFloat(w.value) : l.w }, 'f', timed);
+    document.querySelectorAll('[data-track]').forEach(x => x.setAttribute('aria-selected', (x.dataset.track === 'time') === timed));
+    $('#logErr').hidden = true;
+    return;
+  }
   if (ds.askdel) { S.confirmDel = ds.askdel; refresh(); return; }
   if (ds.del) { S.confirmDel = null; try { await Store.delSet(ds.del); toast('Set removed'); } catch (err) { toast('Could not remove that set. Try again.'); } return; }
   const act = ds.act;
@@ -464,7 +497,7 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
   if (f.id === 'logForm') {
-    const t = cur(), ex = EXI[t.id], { s, err } = readInputs(ex), er = $('#logErr');
+    const t = cur(), ex = EXI[t.id], { s, err } = readInputs(ex, 'f', canTime(ex) && isTimed(ex)), er = $('#logErr');
     if (err) { er.textContent = err; er.hidden = false; return; }
     er.hidden = true;
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
