@@ -1,0 +1,55 @@
+/* 3D form viewer */
+.form3d { display: grid; gap: 10px; }
+.f3-stage { position: relative; height: min(56vh, 460px); min-height: 320px; border-radius: 22px; overflow: hidden; background: var(--scene); }
+.f3-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.f3-canvas:active { cursor: grabbing; }
+.f3-labels { position: absolute; inset: 0; pointer-events: none; }
+.f3-tag { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--label); background: var(--glass); -webkit-backdrop-filter: blur(16px) saturate(180%); backdrop-filter: blur(16px) saturate(180%); border-radius: 8px; padding: 3px 8px; opacity: 0; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+.f3-tag.acc { color: var(--muscle); } .f3-tag.bad { color: var(--danger); } .f3-tag.big { font-size: 14px; }
+.f3-tag.lung { color: var(--lung); } .f3-tag.sky { color: var(--mind); }
+.f3-top { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; justify-content: center; pointer-events: none; }
+.f3-modes { pointer-events: auto; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 12px; }
+.f3-modes button { padding: 7px 16px; }
+.f3-modes button[data-f3mode="muscles"][aria-selected="true"] { color: var(--muscle); }
+.f3-modes button[data-f3mode="breath"][aria-selected="true"] { color: var(--lung); }
+.f3-modes button[data-f3mode="mind"][aria-selected="true"] { color: var(--mind); }
+.f3-bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.f3-views { display: flex; gap: 2px; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-radius: 999px; padding: 3px; }
+.f3-views button { border: 0; background: transparent; color: var(--label); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; min-height: 32px; }
+.f3-views button[aria-pressed="true"] { background: var(--card-solid); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.f3-play { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); display: grid; place-items: center; flex: none; }
+.f3-play svg { width: 16px; height: 16px; stroke: var(--label); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.f3-load { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--label2); font-size: 15px; }
+.f3-panel { background: var(--card-solid); border-radius: 18px; padding: 14px 16px; display: grid; gap: 10px; min-height: 150px; align-content: start; }
+.f3-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.f3-big { font-size: 22px; font-weight: 700; letter-spacing: -.01em; color: var(--muscle); display: flex; align-items: center; gap: 10px; }
+.f3-panel.breath .f3-big { color: var(--lung); }
+.f3-panel.mind .f3-big { color: var(--mind); }
+.f3-big em { width: 10px; height: 10px; border-radius: 50%; background: var(--mind); display: inline-block; transition: transform .1s linear; }
+.f3-sub { font-size: 13px; color: var(--label2); }
+.f3-cue { font-size: 16px; color: var(--label); min-height: 2.7em; margin: 0; }
+.f3-note { font-size: 14px; color: var(--label2); margin: 0; }
+.f3-bars { display: grid; gap: 7px; }
+.f3-bar { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; font-size: 14px; color: var(--label2); }
+.f3-bar b { height: 6px; background: var(--fill); border-radius: 3px; overflow: hidden; }
+.f3-bar i { display: block; height: 100%; width: 0; background: var(--muscle); border-radius: 3px; }
+.f3-actions { justify-content: flex-start; }
+.f3-actions .f3-sub { flex-basis: 100%; }
+.f3-track { position: relative; display: flex; gap: 3px; height: 8px; margin-top: 2px; }
+.f3-track i { display: block; border-radius: 4px; background: color-mix(in srgb, var(--lung) 28%, transparent); }
+.f3-track i.brace { background: var(--lung); } .f3-track i.inhale { background: color-mix(in srgb, var(--lung) 55%, transparent); }
+.f3-track u { position: absolute; top: -4px; width: 4px; height: 16px; border-radius: 2px; background: var(--label); transform: translateX(-2px); }
+.f3-tl { display: flex; gap: 3px; font-size: 12px; color: var(--label2); }
+.f3-tl span { text-align: center; }
+.f3-focus button { padding: 5px 12px; font-size: 13px; }
+.f3-ritual-btn { background: color-mix(in srgb, var(--mind) 16%, transparent); color: var(--mind); }
+.f3-ritual { display: grid; gap: 12px; }
+.f3-pacer { display: flex; align-items: center; gap: 16px; }
+.f3-pacer b { display: block; font-weight: 600; } .f3-pacer span { font-size: 14px; color: var(--label2); }
+.f3-dot { width: 60px; height: 60px; flex: none; border-radius: 50%; background: radial-gradient(circle, var(--mind), color-mix(in srgb, var(--mind) 12%, transparent) 70%); animation: f3pace 10s ease-in-out infinite; }
+@keyframes f3pace { 0% { transform: scale(.55); } 40% { transform: scale(1); } 100% { transform: scale(.55); } }
+@media (prefers-reduced-motion: reduce) { .f3-dot { animation: none; } }
+.f3-ritual ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; font-size: 15px; }
+.f3-watch { background: color-mix(in srgb, var(--mind) 10%, transparent); border-radius: 14px; padding: 12px 14px; font-size: 15px; }
+.f3-watch b { display: block; font-size: 13px; color: var(--mind); margin-bottom: 2px; }
+@media (max-width: 380px) { .f3-views button { padding: 6px 9px; } .f3-modes button { padding: 7px 11px; } }
