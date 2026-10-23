@@ -5,6 +5,7 @@
   --sep: rgba(36,40,37,.14); --fill: rgba(80,86,82,.09); --fill2: rgba(80,86,82,.18);
   --accent: #2e8566; --on-accent: #ffffff; --muscle: #3a9a77; --dev: #2e8566; --lung: #e0435a; --mind: #2f9fd0; --danger: #d93a2b;
   --m0: #dcd8ce; --fig: #e6e2d8; --fig-line: #f6f4ef;
+  --ember-k: 80%; --ember-deep: #5a1206; --bloom: .5; --bloom-blend: multiply; --dot-glow: 0px;
   --glass: rgba(255,253,249,.62); --glass-brd: rgba(255,255,255,.8); --glass-hi: rgba(255,255,255,.95);
   --shadow: 0 10px 30px rgba(40,36,28,.08), 0 1px 3px rgba(40,36,28,.06);
   --blob1: rgba(46,133,102,.10); --blob2: rgba(190,170,130,.12);
@@ -76,12 +77,23 @@ p { margin: 0; }
 .mapcard { position: relative; border-radius: 22px; padding: 8px 0 12px; }
 #map { display: block; height: min(62vh, 560px); width: auto; max-width: 100%; margin: 0 auto; aspect-ratio: 200 / 430; user-select: none; -webkit-user-select: none; }
 #map .sil { fill: var(--fig); }
-#map .mz { stroke: var(--fig-line); stroke-width: .6; cursor: pointer; transition: fill .3s ease, opacity .2s; }
+#map .mz { fill: var(--m0); stroke: var(--fig-line); stroke-width: .6; cursor: pointer; transition: fill .3s ease, opacity .2s; }
+#map .mz.lit, #map .glow path { fill: color-mix(in srgb, var(--e) var(--ember-k), var(--ember-deep)); }
 #map .mz.sel { stroke: var(--accent); stroke-width: 1.4; }
+/* ember bloom: blurred copies of lit muscles, stronger with score */
+#map .glow { pointer-events: none; mix-blend-mode: var(--bloom-blend); }
+#map .glow path { stroke: color-mix(in srgb, var(--e) var(--ember-k), var(--ember-deep)); stroke-linejoin: round; opacity: calc(var(--g) * var(--bloom)); }
+#map .lines { fill: none; stroke: var(--fig-line); stroke-width: .5; opacity: .7; pointer-events: none; }
+#map.ignite .glow { animation: glowin 1.6s ease-out .1s backwards; }
+#map.ignite .mz.lit { animation: emberin 1.4s ease-out backwards; }
+@keyframes glowin { from { opacity: 0; } }
+@keyframes emberin { from { fill: var(--m0); } }
+@media (prefers-reduced-motion: reduce) { #map.ignite .glow, #map.ignite .mz.lit { animation: none; } }
+.dot.lit { background: color-mix(in srgb, var(--e) var(--ember-k), var(--ember-deep)); box-shadow: 0 0 var(--dot-glow) color-mix(in srgb, var(--e) 60%, transparent); }
 .zoomreset { position: absolute; right: 10px; top: 10px; border: 0; border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--label); }
 .hint { text-align: center; font-size: 13px; color: var(--label2); }
 .key { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 12px; color: var(--label2); margin-top: 6px; }
-.key i { display: block; width: 72px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--m0), var(--muscle)); }
+.key i { display: block; width: 72px; height: 6px; border-radius: 3px; }
 
 /* sheet */
 #backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 30; animation: fadein .2s ease-out; }
@@ -189,12 +201,21 @@ details.list p { padding: 0 16px 12px; font-size: 15px; color: var(--label2); }
 .summary .lvl { color: var(--accent); }
 .exc .rank.done { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 12px; width: auto; min-width: 28px; padding: 0 6px; border-radius: 14px; }
 .exc.mine { box-shadow: inset 3px 0 0 var(--accent), 0 1px 2px rgba(0,0,0,.04); }
-.key i { background: linear-gradient(90deg, var(--m0), var(--dev)); }
 .seg button[aria-selected="true"] { color: var(--seg-on-label); }
 
 /* body card: front/back inside */
 .mapseg { position: absolute; left: 12px; top: 12px; z-index: 2; background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
 .mapcard { padding-top: 52px; }
+/* signed-in name, cut into the gallery card above the toggle */
+.mapname { position: absolute; left: 12px; right: 120px; top: 14px; font-family: var(--brand); font-variant-caps: all-small-caps; font-size: 15px; font-weight: 600; letter-spacing: .16em; line-height: 18px; color: var(--label2); text-shadow: 0 1px 0 var(--glass-hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mapcard.named { padding-top: 76px; }
+.mapcard.named .mapseg { top: 36px; }
+
+/* Progress: sign-in offer while signed out */
+.join { border-radius: 22px; padding: 16px; display: grid; gap: 10px; }
+.join p { font-size: 15px; line-height: 1.35; color: var(--label); }
+.join .sub2 { font-size: 14px; color: var(--label2); margin-top: -4px; }
+.join .btn { min-height: 44px; padding: 10px 14px; font-size: 16px; }
 
 /* Mind */
 .mindcard { width: 100%; border-radius: 26px; padding: 18px 12px 16px; display: grid; justify-items: center; gap: 6px; color: var(--label); cursor: pointer; background: radial-gradient(ellipse 70% 60% at 50% 40%, color-mix(in srgb, var(--mind) 16%, transparent), transparent), var(--glass); }

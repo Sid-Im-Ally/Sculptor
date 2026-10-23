@@ -3,7 +3,7 @@ from urllib.parse import quote
 dark = {
  '--bg':'#0a0b0a','--card':'rgba(22,25,23,.8)','--card-solid':'#151816','--label':'#eeeae0','--label2':'rgba(238,234,224,.6)','--label3':'rgba(238,234,224,.3)',
  '--sep':'rgba(238,234,224,.12)','--fill':'rgba(238,234,224,.08)','--fill2':'rgba(238,234,224,.16)','--accent':'#6dbf9e','--on-accent':'#05201a','--muscle':'#6dbf9e','--dev':'#f1ece0','--lung':'#ff5a6e','--mind':'#64c8f0','--danger':'#ff6b5e',
- '--m0':'#2b302c','--fig':'#191c1a','--fig-line':'#0b0d0c','--glass':'rgba(24,28,26,.6)','--glass-brd':'rgba(238,234,224,.10)','--glass-hi':'rgba(238,234,224,.07)',
+ '--m0':'#2b302c','--ember-k':'100%','--ember-deep':'#000','--bloom':'1','--bloom-blend':'screen','--dot-glow':'6px','--fig':'#191c1a','--fig-line':'#0b0d0c','--glass':'rgba(24,28,26,.6)','--glass-brd':'rgba(238,234,224,.10)','--glass-hi':'rgba(238,234,224,.07)',
  '--shadow':'0 10px 30px rgba(0,0,0,.5)','--blob1':'rgba(109,191,158,.10)','--blob2':'rgba(241,236,224,.05)','--scene':'#0d100e','--floor':'#181c19','--seg-on':'#6dbf9e','--seg-on-label':'#05201a'}
 decl = ' '.join(f'{k}: {v};' for k,v in dark.items()) + ' color-scheme: dark;'
 css = open('src/app.css').read().replace('/*DARK*/',

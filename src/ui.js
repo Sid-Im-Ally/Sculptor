@@ -22,21 +22,64 @@ new MutationObserver(() => window.Form3D && Form3D.remount()).observe(document.d
 
 // ---------- colour ----------
 const devOf = m => { const a = C.mus[m]; return a.s ?? a.e; };
-const fillFor = m => { const v = devOf(m); return v == null ? 'var(--m0)' : `color-mix(in srgb, var(--dev) ${Math.round(24 + v * .7)}%, var(--m0))`; };
-const colorFor = fillFor;
+// Development score → ember colour, from a deep smoulder to white heat.
+// Light mode deepens it in CSS (--ember-k, --ember-deep), so this stays theme-free.
+const EMBER = [[0, [0x7a, 0x1a, 0x0c]], [25, [0xd9, 0x44, 0x1a]], [50, [0xff, 0x7a, 0x22]], [75, [0xff, 0xb5, 0x47]], [100, [0xff, 0xf0, 0xd2]]];
+function ember(v) {
+  v = Math.max(0, Math.min(100, v));
+  let i = 1; while (i < EMBER.length - 1 && v > EMBER[i][0]) i++;
+  const [a, ca] = EMBER[i - 1], [b, cb] = EMBER[i], f = (v - a) / (b - a);
+  return '#' + ca.map((c, j) => Math.round(c + (cb[j] - c) * f).toString(16).padStart(2, '0')).join('');
+}
+const emberCSS = c => `color-mix(in srgb, ${c} var(--ember-k), var(--ember-deep))`;
+// Inline style for a lit shape: its colour and a 0–1 glow strength.
+const litStyle = v => `--e:${ember(v)};--g:${(.12 + .88 * Math.pow(Math.min(100, v) / 100, 1.3)).toFixed(3)}`;
+const glowWidth = v => (1 + Math.min(100, v) / 100 * 6).toFixed(2);
 
 // ---------- map ----------
 const OUTLINE_D = outlinePath();
 const PATHS = {};
 for (const v of ['front', 'back']) PATHS[v] = Object.entries(REGIONS[v]).map(([k, pts]) => [k, smoothPath(pts), smoothPath(mirror(pts))]);
+// The bloom is one blurred copy of every lit muscle, screened over the map so it
+// spills onto its neighbours; one filter pass instead of one per muscle keeps zoom smooth.
+// A thin outline layer goes back on top so shapes stay readable through the glow.
+let ignited = false;
 function mapSVG() {
-  const vb = S.vb;
-  let s = `<svg id="map" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" role="img" aria-label="${S.view === 'front' ? 'Front' : 'Back'} of the body"><path class="sil" d="${OUTLINE_D}"/><ellipse class="sil" cx="${HEAD.cx}" cy="${HEAD.cy}" rx="${HEAD.rx}" ry="${HEAD.ry}"/>`;
+  const vb = S.vb, ignite = S.loaded && !ignited && !reduceMotion();
+  if (S.loaded) ignited = true;
+  let s = `<svg id="map"${ignite ? ' class="ignite"' : ''} viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" role="img" aria-label="${S.view === 'front' ? 'Front' : 'Back'} of the body"><defs><filter id="bloom" filterUnits="userSpaceOnUse" x="-20" y="-20" width="240" height="470"><feGaussianBlur in="SourceGraphic" stdDeviation="5" result="wide"/><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="near"/><feMerge><feMergeNode in="wide"/><feMergeNode in="near"/></feMerge></filter></defs><path class="sil" d="${OUTLINE_D}"/><ellipse class="sil" cx="${HEAD.cx}" cy="${HEAD.cy}" rx="${HEAD.rx}" ry="${HEAD.ry}"/>`;
+  let glow = '', lines = '';
   for (const [k, a, b] of PATHS[S.view]) {
-    const sel = S.sel === k ? ' sel' : '', t = `<title>${esc(plain(k))}</title>`;
-    s += `<path class="mz${sel}" data-m="${k}" d="${a}" style="fill:${fillFor(k)}">${t}</path><path class="mz${sel}" data-m="${k}" d="${b}" style="fill:${fillFor(k)}">${t}</path>`;
+    const sel = S.sel === k ? ' sel' : '', t = `<title>${esc(plain(k))}</title>`, v = devOf(k);
+    const cls = `mz${v == null ? '' : ' lit'}${sel}`, st = v == null ? '' : ` style="${litStyle(v)}"`;
+    s += `<path class="${cls}" data-m="${k}" d="${a}"${st}>${t}</path><path class="${cls}" data-m="${k}" d="${b}"${st}>${t}</path>`;
+    if (v != null) glow += `<path data-glow="${k}" d="${a} ${b}" stroke-width="${glowWidth(v)}"${st}/>`;
+    lines += a + b;
   }
-  return s + '</svg>';
+  return s + `<g class="glow" filter="url(#bloom)" aria-hidden="true">${glow}</g><path class="lines" d="${lines}" aria-hidden="true"/></svg>`;
+}
+// Muscles a new set trained flare, then settle. Waits until the map is in view.
+function queueFlare(exIds) {
+  if (reduceMotion()) return;
+  S.flare = S.flare || {};
+  for (const id of exIds) { const e = EXI[id]; if (!e) continue; e.sec.forEach(m => S.flare[m] = Math.max(S.flare[m] || 0, .5)); e.pri.forEach(m => S.flare[m] = 1); }
+}
+function playFlare() {
+  if (!S.flare || S.tab !== 'body' || cur() || !$('#map')) return;
+  const f = S.flare, t0 = performance.now(), dur = 600; S.flare = null;
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur), env = t < .25 ? t / .25 : Math.pow(1 - (t - .25) / .75, 2);
+    for (const k in f) {
+      const v = devOf(k); if (v == null) continue;
+      const b = t < 1 ? Math.min(100, v + 45 * f[k] * env) : v, st = litStyle(b).split(';').map(x => x.split(':'));
+      document.querySelectorAll(`#map [data-m="${k}"], #map [data-glow="${k}"]`).forEach(p => {
+        st.forEach(([n, x]) => p.style.setProperty(n, x));
+        if (p.dataset.glow) p.setAttribute('stroke-width', glowWidth(b));
+      });
+    }
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 const ZOOM_IN = 2.4;
 const clampVB = v => ({ ...v, x: Math.max(0, Math.min(200 - v.w, v.x)), y: Math.max(0, Math.min(430 - v.h, v.y)) });
@@ -72,7 +115,7 @@ function bindMap() {
   // The card around the figure counts as empty space too.
   m.closest('.mapcard').addEventListener('click', e => { if (S.zoom > 1 && !e.target.closest('#map, button')) setZoom(1); });
 }
-function paintMap() { document.querySelectorAll('#map .mz').forEach(p => { const k = p.dataset.m; p.style.fill = fillFor(k); p.classList.toggle('sel', S.sel === k); }); }
+function paintMap() { document.querySelectorAll('#map .mz').forEach(p => p.classList.toggle('sel', S.sel === p.dataset.m)); }
 
 // ---------- ranking ----------
 const STAPLE = new Set('bench_press db_bench incline_bench incline_db machine_chest cable_fly push_up chest_dip ohp db_shoulder_press lateral_raise cable_lateral face_pull rear_delt_fly reverse_pec_deck pull_up chin_up lat_pulldown cable_row db_row bent_row chest_supported_row barbell_curl db_curl hammer_curl incline_curl pushdown rope_pushdown skull_crusher oh_extension cg_bench back_squat front_squat goblet_squat leg_press bss walking_lunge split_squat rdl deadlift trap_bar_dl hip_thrust glute_bridge lying_leg_curl seated_leg_curl nordic leg_ext standing_calf seated_calf sl_calf plank side_plank hlr cable_crunch pallof ab_wheel dead_bug hip_abduction cable_abduction sidelying_abd copenhagen hip_adduction lateral_lunge cossack step_up farmer_carry suitcase_carry barbell_shrug db_shrug cable_er sidelying_er band_pull_apart prone_y tib_raise wrist_curl rev_wrist_curl back_ext kb_swing box_jump broad_jump lateral_bound split_step ghost_drill skater_hops lateral_shuffle jump_rope pogo couch_stretch kneeling_hf pigeon ham_stretch calf_stretch doorway_stretch lat_stretch hip_cars shoulder_cars cat_cow wgs hip_9090 thoracic_ext open_book band_dislocates wall_slides sleeper_stretch cross_body quad_stretch butterfly frog_stretch knee_to_wall ankle_cars neck_iso chin_tuck neck_stretch med_ball_rot woodchop'.split(' '));
@@ -109,13 +152,14 @@ function viewBody() {
   const groups = Object.keys(GROUPS).map(g => {
     const ms = Object.keys(MUSCLES).filter(m => MUSCLES[m][1] === g), vals = ms.map(devOf).filter(v => v != null);
     const v = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, open = S.openG === g;
-    return `<div class="${open ? 'open' : ''}"><button class="row" data-g="${g}"><span class="dot" style="background:${v == null ? 'var(--m0)' : `color-mix(in srgb, var(--dev) ${Math.round(24 + v * .7)}%, var(--m0))`}"></span><span class="grow"><span class="t">${GROUPS[g]}</span></span><span class="v">${ms.length}</span>${ICON.chev}</button>
+    return `<div class="${open ? 'open' : ''}"><button class="row" data-g="${g}"><span class="dot${v == null ? '' : ' lit'}"${v == null ? '' : ` style="${litStyle(v)}"`}></span><span class="grow"><span class="t">${GROUPS[g]}</span></span><span class="v">${ms.length}</span>${ICON.chev}</button>
       ${open ? `<div class="sub">${ms.map(m => `<button class="row" data-m="${m}"><span class="grow"><span class="t">${esc(plain(m))}</span><span class="d">${esc(MUSCLES[m][0])}</span></span>${ICON.chev}</button>`).join('')}</div>` : ''}</div>`;
   }).join('');
+  const name = S.account && S.account.username;
   return `<header class="lt"><div class="brand">SCULPTOR</div></header><div class="meander" aria-hidden="true"></div>
-  <section><div class="mapcard glass"><div class="seg mapseg" role="tablist" aria-label="Side">${['front', 'back'].map(v => `<button role="tab" aria-selected="${S.view === v}" data-side="${v}">${v === 'front' ? 'Front' : 'Back'}</button>`).join('')}</div>${mapSVG()}<div class="plinth" aria-hidden="true"><span>ΓΝΩΘΙ ΣΑΥΤΟΝ</span></div><button id="zoomReset" class="zoomreset glass" data-act="zoom-reset"${S.zoom === 1 ? ' hidden' : ''}>Full body</button></div>
+  <section><div class="mapcard glass${name ? ' named' : ''}">${name ? `<div class="mapname">${esc(name)}</div>` : ''}<div class="seg mapseg" role="tablist" aria-label="Side">${['front', 'back'].map(v => `<button role="tab" aria-selected="${S.view === v}" data-side="${v}">${v === 'front' ? 'Front' : 'Back'}</button>`).join('')}</div>${mapSVG()}<div class="plinth" aria-hidden="true"><span>ΓΝΩΘΙ ΣΑΥΤΟΝ</span></div><button id="zoomReset" class="zoomreset glass" data-act="zoom-reset"${S.zoom === 1 ? ' hidden' : ''}>Full body</button></div>
     <p class="hint" id="mapHint">${mapHint()}</p>
-    <div class="key" aria-hidden="true"><span>Untrained</span><i></i><span>Strong</span></div></section>
+    <div class="key" aria-hidden="true"><span>Untrained</span><i style="background:linear-gradient(90deg, var(--m0), ${EMBER.map(([v]) => emberCSS(ember(v))).join(', ')})"></i><span>Strong</span></div></section>
   <section><h2 class="lh">All muscles</h2><div class="list">${groups}</div></section>`;
 }
 
@@ -159,11 +203,20 @@ function chart(pts, unit) {
     ${pts.map(p => `<circle class="pt" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.5"/>`).join('')}
     <text x="${L}" y="${H - 6}">${dl(t0)}</text>${t1 > t0 ? `<text x="${W - R}" y="${H - 6}" text-anchor="end">${dl(t1)}</text>` : ''}</svg>`;
 }
+// Signed out: a quiet offer to keep the data in an account.
+function joinCard() {
+  if (typeof SB === 'undefined' || !SB.configured() || S.account) return '';
+  const n = Store.localSets().length;
+  return `<section class="join glass"><p>Sign in to keep your sets and progress saved across devices.</p>
+    ${n ? `<p class="sub2">After you sign in, you can upload the ${n} set${n === 1 ? '' : 's'} saved in this browser.</p>` : ''}
+    <div class="rowbtns"><button class="btn" data-act="signup">Create account</button><button class="btn tinted" data-act="signin">Sign in</button></div></section>`;
+}
 function viewProgress() {
   const sets = allSets(), head = `<header class="lt"><div class="brand">SCULPTOR</div><button class="iconbtn glass" data-act="settings" aria-label="Settings">${ICON.gear}</button></header><div class="meander" aria-hidden="true"></div>`;
   const notice = S.sample ? `<div class="notice glass"><span>Showing sample data</span><button class="link" data-act="sample-off">Exit</button></div>` : '';
   if (!S.loaded) return head + `<p class="hint">Loading…</p>`;
-  if (!sets.length) return head + notice + `<div class="empty glass"><b>No sets yet</b><p>Pick a muscle on Body and log a set. Or enter your current lifts to fill in the map now.</p><button class="btn" data-act="assess">Add current lifts</button><button class="link" data-act="sample-on">Preview with sample data</button></div>`;
+  const join = joinCard();
+  if (!sets.length) return head + notice + join + `<div class="empty glass"><b>No sets yet</b><p>Pick a muscle on Body and log a set. Or enter your current lifts to fill in the map now.</p><button class="btn" data-act="assess">Add current lifts</button><button class="link" data-act="sample-on">Preview with sample data</button></div>`;
   const ov = overall(), now = Date.now(), week = sets.filter(s => now - s.t < 7 * DAY), days = new Set(week.map(s => new Date(s.t).toDateString())).size;
   const fresh = Object.keys(MUSCLES).filter(m => C.mus[m].daysSE != null && C.mus[m].daysSE <= 14).length;
   let body = '';
@@ -185,7 +238,7 @@ function viewProgress() {
       ${open ? `<div class="sub">${ms.map(m => { const mv = devOf(m), a = C.mus[m]; return `<button class="row" data-m="${m}"><span class="grow"><span class="t">${esc(plain(m))}</span><span class="d">${mv == null ? 'Not trained' : `${levelName(mv)} · ${a.days == null ? 'indirect only' : dayLabel(Date.now() - a.days * DAY)}`}</span></span><span class="v num">${mv == null ? '–' : Math.round(mv)}</span>${ICON.chev}</button>`; }).join('')}</div>` : ''}</div>`;
     }).join('')}</div><p class="foot">Scores compare your best recent lifts with men at your bodyweight. 20 Beginner · 40 Novice · 60 Intermediate · 80 Advanced · 100 Elite.</p>`;
   }
-  return head + notice + `<section class="summary glass"><div><div class="ss" style="margin:0 0 4px">Overall strength</div><div class="big">${ov == null ? '–' : Math.round(ov)}</div></div><div class="lvl">${ov == null ? '' : levelName(ov)}</div>
+  return head + notice + join + `<section class="summary glass"><div><div class="ss" style="margin:0 0 4px">Overall strength</div><div class="big">${ov == null ? '–' : Math.round(ov)}</div></div><div class="lvl">${ov == null ? '' : levelName(ov)}</div>
     <div class="meta"><span><b>${week.length}</b> sets this week</span><span><b>${days}</b> days trained</span><span><b>${fresh}</b> muscles in 14 days</span></div></section>
     <div class="seg full" role="tablist" aria-label="Progress view"><button role="tab" aria-selected="${S.prog === 'ex'}" data-prog="ex">Exercises</button><button role="tab" aria-selected="${S.prog === 'mus'}" data-prog="mus">Muscles</button></div>
     ${body}`;
@@ -195,7 +248,7 @@ function viewProgress() {
 const cur = () => S.stack[S.stack.length - 1];
 function openMuscle(id) { S.sel = id; S.showAll = false; S.stack = [{ type: 'muscle', id }]; renderSheet(); paintMap(); }
 function openEx(id, from) { const t = cur(); if (t && t.type === 'muscle') S.stack.push({ type: 'ex', id, from: t.id }); else S.stack = [{ type: 'ex', id, from: from || null }]; S.confirmDel = null; renderSheet(); }
-function closeSheet() { if (typeof BR !== 'undefined' && BR.run) breatheEnd(false); S.stack = []; S.sel = null; renderSheet(); paintMap(); }
+function closeSheet() { if (typeof BR !== 'undefined' && BR.run) breatheEnd(false); S.stack = []; S.sel = null; renderSheet(); paintMap(); playFlare(); }
 function sbar(backLabel) { return `<div class="grab" aria-hidden="true"></div><div class="sbar">${backLabel ? `<button class="back" data-act="back">${ICON.back}${esc(backLabel)}</button>` : ''}<button class="xbtn" data-act="close" aria-label="Close">${ICON.x}</button></div>`; }
 function sheetMuscle(id) {
   const [name, , , , parent] = MUSCLES[id], a = C.mus[id], dv = devOf(id);
@@ -340,7 +393,7 @@ function renderMain() {
   C = compute();
   $('#main').innerHTML = S.tab === 'body' ? viewBody() : S.tab === 'mind' ? viewMind() : viewProgress();
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === S.tab ? 'page' : 'false'));
-  if (S.tab === 'body') bindMap();
+  if (S.tab === 'body') { bindMap(); playFlare(); }
 }
 function refresh() { renderMain(); refreshSheetData(); }
 let toastT;
@@ -463,7 +516,7 @@ document.addEventListener('click', async e => {
   if (act === 'all') { S.showAll = !S.showAll; refreshSheetData(); }
   if (act === 'zoom-reset') setZoom(1);
   if (act === 'settings') { S.stack = [{ type: 'settings' }]; renderSheet(); }
-  if (act === 'signin' || act === 'signup') { S.stack = [{ type: act }]; renderSheet(); }
+  if (act === 'signin' || act === 'signup') { S.stack = [{ type: 'settings' }, { type: act }]; renderSheet(); }
   if (act === 'signout') {
     b.disabled = true;
     try { await SB.signOut(); } catch (err) { }
@@ -487,6 +540,7 @@ document.addEventListener('click', async e => {
     const entries = Object.entries(S.assess.draft), t = Date.now();
     b.disabled = true; b.textContent = 'Saving…';
     try {
+      queueFlare(entries.map(([ex]) => ex));
       if (entries.length) await Store.addSets(entries.map(([ex, s], i) => ({ ex, ...s, t: t + i, src: 'assessment' })));
       await Store.saveProfile({ ...S.profile, assessed: true });
       S.assess = null; closeSheet(); renderMain(); toast(entries.length ? 'Lifts saved' : 'Done');
@@ -501,8 +555,8 @@ document.addEventListener('submit', async e => {
     if (err) { er.textContent = err; er.hidden = false; return; }
     er.hidden = true;
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
-    try { await Store.addSets([{ ex: ex.id, ...s, t: Date.now(), src: 'log' }]); toast(`Logged ${setText(ex, s)}`); }
-    catch (x) { toast('Could not save that set. Try again.'); }
+    try { queueFlare([ex.id]); await Store.addSets([{ ex: ex.id, ...s, t: Date.now(), src: 'log' }]); toast(`Logged ${setText(ex, s)}`); }
+    catch (x) { S.flare = null; toast('Could not save that set. Try again.'); }
     btn.disabled = false;
   }
   if (f.id === 'profileForm' || f.id === 'aProfile') {
